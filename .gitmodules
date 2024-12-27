@@ -5,15 +5,15 @@
 [submodule "ebms-admin"]
 	path = ebms-admin
 	url = git@github.com:eluinstra/ebms-admin.git
-	branch = dev-2.19.x
+	branch = dev
 [submodule "ebms-core"]
 	path = ebms-core
 	url = git@github.com:eluinstra/ebms-core.git
-	branch = dev-2.19.x
+	branch = dev
 [submodule "ebms-docker"]
 	path = ebms-docker
 	url = git@github.com:eluinstra/ebms-docker.git
-	branch = 2.19.x
+	branch = 2.20.x
 [submodule "ebms-perftest-setup"]
 	path = ebms-perftest-setup
 	url = git@github.com:eluinstra/ebms-perftest-setup.git
