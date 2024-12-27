@@ -1,0 +1,31 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "ebms-admin_documentation"
+		},
+		{
+			"path": "ebms-admin"
+		},
+		{
+			"path": "ebms-core"
+		},
+		{
+			"path": "ebms-docker"
+		},
+		{
+			"path": "ebms-perftest-setup"
+		},
+		{
+			"path": "ebms-admin-vaadin"
+		},
+		{
+			"path": "ebms-admin-kotlin"
+		}
+	],
+	"settings": {
+		"java.configuration.updateBuildConfiguration": "automatic"
+	}
+}

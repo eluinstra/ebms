@@ -1,0 +1,49 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
+{
+	"name": "EbMS 2.19",
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	"image": "mcr.microsoft.com/devcontainers/base:noble",
+	"mounts": [
+		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh/,target=/home/vscode/.ssh,readonly"
+	],
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
+		"ghcr.io/devcontainers/features/node:1": {},
+		"ghcr.io/devcontainers/features/java:1": {
+			"installMaven": true,
+			"version": "11"
+		}
+	},
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	"forwardPorts": [3000,5432,8080],
+
+	// Use 'postCreateCommand' to run commands after the container is created.
+	// "postCreateCommand": "",
+
+    "customizations": {
+        // Configure properties specific to VS Code.
+        "vscode": {
+            "settings": {
+            },
+            // Add the IDs of extensions you want installed when the container is created.
+            "extensions": [
+                // "ms-azuretools.vscode-docker",
+				"donjayamanne.githistory",
+                "mhutchie.git-graph",
+				"humao.rest-client",
+				"qcz.text-power-tools",
+				"berublan.vscode-log-viewer",
+                // "dbaeumer.vscode-eslint",
+				// "vscjava.vscode-java-pack",
+				"sonarsource.sonarlint-vscode",
+				"redhat.fabric8-analytics",
+				"ms-ossdata.vscode-postgresql"
+            ]
+        }
+    }
+
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
+}

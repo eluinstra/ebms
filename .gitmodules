@@ -1,0 +1,28 @@
+[submodule "ebms-admin_documentation"]
+	path = ebms-admin_documentation
+	url = git@github.com:eluinstra/ebms-admin.git
+	branch = documentation
+[submodule "ebms-admin"]
+	path = ebms-admin
+	url = git@github.com:eluinstra/ebms-admin.git
+	branch = dev-2.19.x
+[submodule "ebms-core"]
+	path = ebms-core
+	url = git@github.com:eluinstra/ebms-core.git
+	branch = dev-2.19.x
+[submodule "ebms-docker"]
+	path = ebms-docker
+	url = git@github.com:eluinstra/ebms-docker.git
+	branch = 2.19.x
+[submodule "ebms-perftest-setup"]
+	path = ebms-perftest-setup
+	url = git@github.com:eluinstra/ebms-perftest-setup.git
+	branch = 2.19.x
+[submodule "ebms-admin-vaadin"]
+	path = ebms-admin-vaadin
+	url = git@github.com:eluinstra/ebms-admin-vaadin.git
+	branch = dev
+[submodule "ebms-admin-kotlin"]
+	path = ebms-admin-kotlin
+	url = git@github.com:eluinstra/ebms-admin-kotlin.git
+	branch = dev
