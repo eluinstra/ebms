@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
 {
-	"name": "EbMS 2.19",
+	"name": "EbMS 2.20",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"image": "mcr.microsoft.com/devcontainers/base:noble",
 	"mounts": [
@@ -12,7 +12,7 @@
 		"ghcr.io/devcontainers/features/node:1": {},
 		"ghcr.io/devcontainers/features/java:1": {
 			"installMaven": true,
-			"version": "11"
+			"version": "17"
 		}
 	},
 
@@ -20,12 +20,14 @@
 	"forwardPorts": [3000,5432,8080],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "",
+	"postCreateCommand": "sudo apt update && sudo apt install -y libxtst6 libxrender1 libxi6",
 
     "customizations": {
         // Configure properties specific to VS Code.
         "vscode": {
             "settings": {
+				"java.configuration.updateBuildConfiguration": "automatic",
+				"java.compile.nullAnalysis.mode": "automatic"
             },
             // Add the IDs of extensions you want installed when the container is created.
             "extensions": [
@@ -37,6 +39,7 @@
 				"berublan.vscode-log-viewer",
                 // "dbaeumer.vscode-eslint",
 				// "vscjava.vscode-java-pack",
+				"dhruv.maven-dependency-explorer",
 				"sonarsource.sonarlint-vscode",
 				"redhat.fabric8-analytics",
 				"ms-ossdata.vscode-postgresql"
