@@ -5,6 +5,7 @@
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"image": "mcr.microsoft.com/devcontainers/base:noble",
 	"mounts": [
+		// "type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.m2/,target=/home/vscode/.m2,readwrite",
 		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh/,target=/home/vscode/.ssh,readonly"
 	],
 	"features": {
@@ -12,7 +13,8 @@
 		"ghcr.io/devcontainers/features/node:1": {},
 		"ghcr.io/devcontainers/features/java:1": {
 			"installMaven": true,
-			"version": "17"
+			"version": "21",
+			"additionalVersions": "17"
 		}
 	},
 
@@ -20,12 +22,23 @@
 	"forwardPorts": [3000,5432,8080],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "sudo apt update && sudo apt install -y libxtst6 libxrender1 libxi6",
+	"postCreateCommand": "sudo apt update && sudo apt upgrade -y && sudo apt install -y libxtst6 libxi6 graphviz",
 
     "customizations": {
         // Configure properties specific to VS Code.
         "vscode": {
             "settings": {
+				"java.configuration.runtimes": [
+					{
+						"name": "JavaSE-17",
+						"path": "/usr/local/sdkman/candidates/java/17.0.14-ms/",
+						"default": true
+					},
+					{
+						"name": "JavaSE-21",
+						"path": "/usr/local/sdkman/candidates/java/21.0.6-ms/",
+					},
+				],
 				"java.configuration.updateBuildConfiguration": "automatic",
 				"java.compile.nullAnalysis.mode": "automatic"
             },
@@ -37,6 +50,9 @@
 				"humao.rest-client",
 				"qcz.text-power-tools",
 				"berublan.vscode-log-viewer",
+				"jebbs.plantuml",
+				"tomoyukim.vscode-mermaid-editor",
+				"yzhang.markdown-all-in-one",
                 // "dbaeumer.vscode-eslint",
 				// "vscjava.vscode-java-pack",
 				"dhruv.maven-dependency-explorer",

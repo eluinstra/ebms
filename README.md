@@ -1,6 +1,6 @@
 # EbMS
 
-## Maven custom settings
+## Build project
 
 ### create settings.xml
 
@@ -25,8 +25,8 @@ cat >> ~/.m2/settings.xml << EOF
 EOF
 ```
 
-### build project
+### Install project
 
 ```sh
-mvn --settings ~/.m2/settings.xml package
+mvn install
 ```
