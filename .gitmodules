@@ -18,11 +18,3 @@
 	path = ebms-perftest-setup
 	url = git@github.com:eluinstra/ebms-perftest-setup.git
 	branch = 2.19.x
-[submodule "ebms-admin-vaadin"]
-	path = ebms-admin-vaadin
-	url = git@github.com:eluinstra/ebms-admin-vaadin.git
-	branch = dev
-[submodule "ebms-admin-kotlin"]
-	path = ebms-admin-kotlin
-	url = git@github.com:eluinstra/ebms-admin-kotlin.git
-	branch = dev
