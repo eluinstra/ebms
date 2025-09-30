@@ -1,5 +1,5 @@
 [submodule "ebms-admin_documentation"]
-	path = ebms-admin_documentation
+	path = documentation
 	url = git@github.com:eluinstra/ebms-admin.git
 	branch = documentation
 [submodule "ebms-admin"]
