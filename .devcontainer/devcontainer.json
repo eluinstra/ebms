@@ -6,7 +6,7 @@
 	],
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {
-			"moby": false
+			"moby": true
 		},
 		"ghcr.io/devcontainers/features/node:1": {},
 		"ghcr.io/devcontainers/features/java:1": {
@@ -25,9 +25,10 @@
 		}
 	},
 	"forwardPorts": [
-		3000,
 		5432,
-		8080
+		8080,
+		8088,
+		8443
 	],
 	"customizations": {
 		"vscode": {
