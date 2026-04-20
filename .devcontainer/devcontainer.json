@@ -23,15 +23,18 @@
 		}
 	},
 	"forwardPorts": [
-		3000,
 		5432,
-		8080
+		8000,
+		8080,
+		8088,
+		8443
 	],
 	"customizations": {
 		"vscode": {
 			"settings": {
 				"java.configuration.updateBuildConfiguration": "automatic",
 				"java.compile.nullAnalysis.mode": "automatic",
+				"markdown.extension.toc.updateOnSave": false,
 				"sonarlint.ls.javaHome": "/usr/local/sdkman/candidates/java/21.0.7-ms/"
 			},
 			"extensions": [
