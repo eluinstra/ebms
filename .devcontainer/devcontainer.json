@@ -5,9 +5,7 @@
 		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh/,target=/home/vscode/.ssh,readonly"
 	],
 	"features": {
-		"ghcr.io/devcontainers/features/docker-in-docker:2.13.0": {
-			"moby": true
-		},
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
 		"ghcr.io/devcontainers/features/node:1": {},
 		"ghcr.io/devcontainers/features/java:1": {
 			"installMaven": true,
