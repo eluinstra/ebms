@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest an enhancement or new feature
+title: "Feature: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Short summary of the feature
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation and use cases
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal (high level design)
+  - type: input
+    id: impact
+    attributes:
+      label: Areas impacted
+      description: e.g., ebms-core, plugin/db/postgres, documentation

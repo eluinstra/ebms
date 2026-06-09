@@ -1,0 +1,30 @@
+name: Bug report
+description: Use this template to report a bug
+title: "Bug: "
+labels: [bug]
+body:
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Describe the steps to reproduce the bug
+      placeholder: |
+        1. Clone the repo
+        2. Run mvn test
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or stack trace
+  - type: input
+    id: version
+    attributes:
+      label: Project version (if known)
+      description: (e.g., 2.20.7-SNAPSHOT)

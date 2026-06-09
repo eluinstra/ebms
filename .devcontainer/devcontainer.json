@@ -46,13 +46,13 @@
 				"berublan.vscode-log-viewer",
 				"jebbs.plantuml",
 				"tomoyukim.vscode-mermaid-editor",
-				"yzhang.markdown-all-in-one",
 				// "dbaeumer.vscode-eslint",
 				// "vscjava.vscode-java-pack",
 				"dhruv.maven-dependency-explorer",
 				"sonarsource.sonarlint-vscode",
 				"redhat.fabric8-analytics",
-				"ms-ossdata.vscode-postgresql"
+				"ms-ossdata.vscode-postgresql",
+				"github.vscode-github-actions"
 			]
 		}
 	}
