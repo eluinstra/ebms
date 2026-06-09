@@ -10,12 +10,13 @@ Language & build
 - Build tool: Maven (multi-module). Use top-level parent at ebms-core/pom.xml.
 - Common commands:
   - Install: mvn -B install
-  - Run tests: mvn -B test
+  - Run tests: mvn -B test or mvn -B verify
   - Build a module: mvn -pl <module-path> -am package
 
 Testing
 
-- Unit tests use JUnit under src/test/java. Prefer small, deterministic tests.
+- Unit tests use JUnit and Mockito under src/test/java. Prefer small, deterministic tests.
+- Integration tests use JUnit, RestAssured and Testcontainers under src/test/java. Use mvn verify to run them.
 
 Review patterns & mined guidance
 

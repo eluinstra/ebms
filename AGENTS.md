@@ -1,17 +1,29 @@
 Project Overview
 
-EbMS (nl.clockwork.ebms) is a Java 17 Maven multi-module implementation of the ebXML Messaging Specification (EbMS 2.0). The repository is a multi-module Maven build (ebms-core with plugins for multiple databases and caches) plus administration UI and Docker examples.
+EbMS (nl.clockwork.ebms) is a Java 17 Maven multi-module implementation of the ebXML Messaging Specification (EbMS 2.0). The repository is a multi-module Maven build (ebms-core with plugins for multiple databases and caches) plus webapp and Docker examples.
 
 Repository structure (high level)
 
-- ebms-core/       — Maven parent for core modules (common, core, plugins)
-- ebms-admin/      — Administration UI and webapp
-- ebms-docker/     — docker-compose examples and images
-- documentation/   — docs site and versioned docs
+- ebms-core/                — Maven parent for EbMS core modules (common, core, plugins)
+- ebms-admin/               — SOAP/REST server and webapp
+- ebms-docker/              — docker-compose examples and images
+- ebms-perftest-setup/      — performance test setup and scripts
+- ebms-core/core/resources/ — core resources, including test resources and documentation assets
+- documentation/            — docs site and versioned docs
+
+Documentation
+
+- Project documentation is located under documentation/ and versioned with the code
+- REST OpenAPI specification is located at ebms-core/core/resources/api/rest/*.json
+- SOAP API WSDL specification is located at ebms-core/core/resources/api/soap/*.wsdl
+- Manual test resources are located at ebms-core/core/resources/test/*
+- EbMS 2.0 specification reference is located at documentation/static/assets/ebMS_v2_0.pdf
 
 Tech stack
 
 - Java 17 (property: jdk.version = 17 in ebms-core/pom.xml)
+- Lombok
+- Spring Framework
 - Build: Maven multi-module
 - Tests: JUnit (src/test/java present)
 - Containers: Docker / docker-compose examples
@@ -19,12 +31,13 @@ Tech stack
 Build & Run
 
 - Install: mvn -B install
-- Run tests: mvn -B test
+- Run tests: mvn -B test or mvn -B verify
 - Build a single module: mvn -pl module-path -am package
 
 Testing
 
 - Unit tests located under */src/test/java — run with mvn test
+- Integration tests located under */src/test/java — run with mvn verify
 
 CI/CD
 
