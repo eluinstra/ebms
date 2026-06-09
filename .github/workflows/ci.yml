@@ -11,16 +11,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
       - name: Cache Maven
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-      - name: Build and test
-        run: mvn -B -T 1C clean verify
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Build ebms-core
+        run: mvn -B -T 1C -f ebms-core/pom.xml clean install -DskipTests
+      - name: Build and test ebms-admin
+        run: mvn -B -T 1C -f ebms-admin/pom.xml clean verify
