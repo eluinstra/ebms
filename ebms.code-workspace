@@ -21,6 +21,34 @@
 	],
 	"settings": {
 		"java.configuration.updateBuildConfiguration": "automatic",
-		"java.compile.nullAnalysis.mode": "automatic"
+		"java.compile.nullAnalysis.mode": "automatic",
+		"sonarlint.rules": {
+			"java:S106": {
+				"level": "off"
+			},
+			"java:S107": {
+				"level": "off"
+			},
+			"java:S110": {
+				"level": "off"
+			},
+			"java:S125": {
+				"level": "off"
+			},
+			"java:S1134": {
+				"level": "off"
+			},
+			"java:S1135": {
+				"level": "off"
+			},
+			"java:S1192": {
+				"level": "off"
+			}
+		},
+		"chat.tools.terminal.autoApprove": {
+			"mvn compile": true,
+			"mvn dependency:resolve": true,
+			"mvn dependency:tree": true
+		}
 	}
 }
