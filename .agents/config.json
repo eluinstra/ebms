@@ -1,0 +1,18 @@
+{
+  "name": "ebms",
+  "version": "2.20.9-SNAPSHOT",
+  "description": "EbXML Messaging Specification 2.0 implementation",
+  "skills": [
+    "java-maven-developer",
+    "code-review",
+    "docker-compose",
+    "sonar-quality"
+  ],
+  "conventions": {
+    "branchTarget": "dev",
+    "branchNaming": "feature/<short-description> or fix/<short-description>",
+    "jdkVersion": "17",
+    "buildTool": "maven",
+    "moduleParent": "ebms-core/pom.xml"
+  }
+}

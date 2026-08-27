@@ -1,0 +1,16 @@
+{
+  "name": "ebms",
+  "platforms": ["java","maven"],
+  "jdk": "17",
+  "services": {
+    "postgres": {
+      "image": "postgres:15",
+      "env": {
+        "POSTGRES_USER": "ebms",
+        "POSTGRES_PASSWORD": "${POSTGRES_PASSWORD}",
+        "POSTGRES_DB": "ebms_test"
+      },
+      "ports": ["5432:5432"]
+    }
+  }
+}

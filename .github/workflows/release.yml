@@ -1,0 +1,243 @@
+name: Release
+
+# Parent-driven release for ebms-core + ebms-admin, run together.
+#
+# Trigger: Actions tab -> Release -> Run workflow (branch: dev), enter the
+# target version, e.g. 2.20.9
+#
+# What it does (in order):
+#   1. Check out ebms-core and ebms-admin at the tip of dev-2.20.x
+#   2. Bump the version to the target release version
+#   3. Build and test both (same commands as ci.yml)
+#   4. Commit + tag + push both submodules (ebms-core-<v>, ebms-admin-<v>)
+#   5. Create a GitHub release per submodule on the new tag, with the built
+#      JARs attached as assets
+#   6. Bump both to <next patch>-SNAPSHOT ("prepare for next development
+#      iteration"), commit + push
+#   7. Pin the new submodule commits in the parent repo and push to dev
+#   8. Wait for the ci.yml run triggered by the pin to finish green
+#
+# Nothing is published to Maven Central or GitHub Packages; the built JARs
+# are attached to the GitHub releases only.
+#
+# Required repository secret:
+#   SUBMODULE_GITHUB_TOKEN - a PAT (or GitHub App token) with write access
+#     to eluinstra/ebms-core and eluinstra/ebms-admin. The job token can
+#     only write to the parent repo.
+#
+# Optional approval gate: create an environment named "release"
+# (Settings -> Environments) with required reviewers, then uncomment the
+# `environment` line below.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, e.g. 2.20.9'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # environment: release
+    steps:
+      - name: Validate version input
+        id: check
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must be MAJOR.MINOR.PATCH, got: $VERSION"
+            exit 1
+          fi
+          NEXT_PATCH=$(( ${VERSION##*.} + 1 ))
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "snapshot=${VERSION%.*}.${NEXT_PATCH}-SNAPSHOT" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Prepare submodules
+        run: |
+          # --global: local config would only apply to the parent repo,
+          # commits in the submodules have their own config and would fail
+          # with "Author identity unknown"
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          for d in ebms-core ebms-admin; do
+            # fetch tags too, so the release step can find the previous
+            # release tag for the changelog body
+            git -C "$d" fetch --quiet --tags origin dev-2.20.x
+            git -C "$d" checkout --quiet dev-2.20.x
+            # release from the branch tip; refuse to run on a dirty tree
+            if ! git -C "$d" diff --quiet origin/dev-2.20.x HEAD; then
+              echo "::error::$d is not at the tip of origin/dev-2.20.x"
+              exit 1
+            fi
+            if [ -n "$(git -C "$d" status --porcelain)" ]; then
+              echo "::error::$d has uncommitted changes; commit them first"
+              exit 1
+            fi
+          done
+
+      - name: Bump version
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          # ebms-core: single <revision> in the root pom (children inherit it)
+          sed -i "s|<revision>.*</revision>|<revision>${VERSION}</revision>|" ebms-core/pom.xml
+          # ebms-admin: project version is the line after <artifactId>ebms-admin</artifactId>
+          sed -i "/<artifactId>ebms-admin<\/artifactId>/{n;s/<version>.*<\/version>/<version>${VERSION}<\/version>/}" ebms-admin/pom.xml
+          grep -H "<revision>\|<version>${VERSION}</version>" ebms-core/pom.xml ebms-admin/pom.xml
+
+      - name: Build ebms-core
+        run: mvn -B -T 1C -f ebms-core/pom.xml clean install -DskipTests -Ddependency-check.skip=true
+
+      - name: Build and test ebms-admin
+        run: mvn -B -T 1C -f ebms-admin/pom.xml clean verify -Ddependency-check.skip=true
+
+      - name: Collect release artifacts
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          mkdir -p dist/ebms-core dist/ebms-admin
+          cp "ebms-core/core/target/ebms-core-${VERSION}.jar" dist/ebms-core/
+          cp "ebms-admin/target/ebms-admin-${VERSION}.jar" dist/ebms-admin/
+          # plugin JARs (db + cache) go to both releases
+          for j in $(find ebms-core/plugin -name "ebms-*-${VERSION}.jar"); do
+            cp "$j" dist/ebms-core/
+            cp "$j" dist/ebms-admin/
+          done
+          echo "ebms-core assets:"; ls dist/ebms-core
+          echo "ebms-admin assets:"; ls dist/ebms-admin
+
+      - name: Commit and tag releases
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
+        run: |
+          git -C ebms-core add pom.xml
+          git -C ebms-core commit -m "release ${VERSION}"
+          git -C ebms-core tag "ebms-core-${VERSION}"
+          git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" dev-2.20.x
+          git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" "ebms-core-${VERSION}"
+
+          git -C ebms-admin add pom.xml
+          git -C ebms-admin commit -m "release ${VERSION}"
+          git -C ebms-admin tag "ebms-admin-${VERSION}"
+          git -C ebms-admin push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-admin.git" dev-2.20.x
+          git -C ebms-admin push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-admin.git" "ebms-admin-${VERSION}"
+
+      - name: Create GitHub releases
+        # runs after the tags are pushed: posting a release for a tag that
+        # does not exist yet would make GitHub create a lightweight tag at
+        # the default branch, i.e. the wrong commit
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
+        run: |
+          create_release() {
+            local repo=$1 dir=$2 dist=$3 tag=$4
+            # changelog body: commit subjects since the previous release tag
+            local prev_tag body
+            prev_tag=$(git -C "$dir" tag --list "${dir}-*" | sort -V | head -n -1 | tail -n 1)
+            body=""
+            if [ -n "$prev_tag" ]; then
+              body=$(git -C "$dir" log --no-merges --pretty='- %s' "${prev_tag}..HEAD" | grep -v '^- release ' || true)
+            fi
+            [ -n "$body" ] || body="- (no changelog available)"
+            local payload release_id
+            payload=$(jq -n --arg tag "$tag" --arg body "$body" \
+              '{tag_name: $tag, target_commitish: "dev-2.20.x", body: $body, draft: false, prerelease: false}')
+            release_id=$(curl -sf -X POST \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -d "$payload" \
+                "https://api.github.com/repos/${repo}/releases" | jq .id) \
+              || release_id=$(curl -sf \
+                -H "Authorization: Bearer ${TOKEN}" \
+                "https://api.github.com/repos/${repo}/releases/tags/${tag}" | jq .id)
+            if [ -z "$release_id" ]; then
+              echo "::error::could not create or fetch release ${tag} on ${repo}"
+              exit 1
+            fi
+            for f in "$dist"/*.jar; do
+              curl -sf -X POST \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -H "Content-Type: application/java-archive" \
+                --data-binary @"$f" \
+                "https://uploads.github.com/repos/${repo}/releases/${release_id}/assets?name=$(basename "$f")" \
+                > /dev/null
+            done
+            echo "${repo}: created release ${tag} (id ${release_id}) with $(ls "$dist" | wc -l) assets"
+          }
+          create_release eluinstra/ebms-core ebms-core dist/ebms-core "ebms-core-${VERSION}"
+          create_release eluinstra/ebms-admin ebms-admin dist/ebms-admin "ebms-admin-${VERSION}"
+
+      - name: Prepare for next development iteration
+        env:
+          SNAPSHOT: ${{ steps.check.outputs.snapshot }}
+          TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
+        run: |
+          sed -i "s|<revision>.*</revision>|<revision>${SNAPSHOT}</revision>|" ebms-core/pom.xml
+          sed -i "/<artifactId>ebms-admin<\/artifactId>/{n;s/<version>.*<\/version>/<version>${SNAPSHOT}<\/version>/}" ebms-admin/pom.xml
+          git -C ebms-core add pom.xml
+          git -C ebms-core commit -m "prepare for next development iteration"
+          git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" dev-2.20.x
+          git -C ebms-admin add pom.xml
+          git -C ebms-admin commit -m "prepare for next development iteration"
+          git -C ebms-admin push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-admin.git" dev-2.20.x
+
+      - name: Pin submodules in parent
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          # ignore=all in .gitmodules makes plain `git add` skip gitlinks
+          git add -f ebms-core ebms-admin
+          git commit -m "release: pin ebms-core and ebms-admin to ${VERSION}"
+          git push origin HEAD:dev
+
+      - name: Wait for CI to go green
+        env:
+          REPO: ${{ github.repository }}
+          TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          # wait for a ci.yml run on dev at (or after) the commit we just pushed
+          for i in $(seq 1 60); do
+            sleep 30
+            RUN=$(curl -sf -H "Authorization: Bearer ${TOKEN}" \
+              "https://api.github.com/repos/${REPO}/actions/workflows/ci.yml/runs?branch=dev&per_page=1" \
+              | python3 -c "import json,sys; print(json.load(sys.stdin)['workflow_runs'][0]['id'])")
+            STATUS=$(curl -sf -H "Authorization: Bearer ${TOKEN}" \
+              "https://api.github.com/repos/${REPO}/actions/runs/${RUN}" \
+              | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['status'], d['conclusion'])")
+            echo "poll ${i}: ${STATUS}"
+            case "${STATUS}" in
+              completed\ success) exit 0 ;;
+              completed\ *)
+                echo "::error::CI failed after release"
+                exit 1 ;;
+            esac
+          done
+          echo "::error::timed out waiting for CI"
+          exit 1

@@ -5,13 +5,13 @@
 		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh/,target=/home/vscode/.ssh,readonly"
 	],
 	"features": {
-		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
-		"ghcr.io/devcontainers/features/node:1": {},
-		"ghcr.io/devcontainers/features/java:1": {
+		"ghcr.io/devcontainers/features/docker-in-docker:4.1.0": {},
+		"ghcr.io/devcontainers/features/node:2.1.0": {},
+		"ghcr.io/devcontainers/features/java:1.8.1": {
 			"installMaven": true,
-			"mavenVersion": "3.9.8",
 			"version": "17",
-			"additionalVersions": "21.0.7-ms"
+			"jdkDistro": "tem",
+			"additionalVersions": "21.0.7-tem"
 		},
 		"ghcr.io/devcontainers-extra/features/apt-packages:1": {
 			"packages": [
@@ -22,8 +22,14 @@
 			]
 		}
 	},
+	"containerUser": "vscode",
+	"remoteUser": "vscode",
+  "postCreateCommand": "curl -LsSf https://astral.sh/uv/install.sh | sh && npm install -g @openhands/agent-canvas",
+	"postStartCommand": "nohup bash -c 'agent-canvas --port 7000 &'",
+	"appPort": ["7000:7000"],
 	"forwardPorts": [
 		5432,
+		7000,
 		8000,
 		8080,
 		8088,
@@ -35,7 +41,30 @@
 				"java.configuration.updateBuildConfiguration": "automatic",
 				"java.compile.nullAnalysis.mode": "automatic",
 				"markdown.extension.toc.updateOnSave": false,
-				"sonarlint.ls.javaHome": "/usr/local/sdkman/candidates/java/21.0.7-ms/"
+				"sonarlint.ls.javaHome": "/usr/local/sdkman/candidates/java/21.0.7-tem/",
+				"sonarlint.rules": {
+					"java:S106": {
+						"level": "off"
+					},
+					"java:S107": {
+						"level": "off"
+					},
+					"java:S110": {
+						"level": "off"
+					},
+					"java:S125": {
+						"level": "off"
+					},
+					"java:S1134": {
+						"level": "off"
+					},
+					"java:S1135": {
+						"level": "off"
+					},
+					"java:S1192": {
+						"level": "off"
+					}
+				}
 			},
 			"extensions": [
 				// "ms-azuretools.vscode-docker",
@@ -46,13 +75,13 @@
 				"berublan.vscode-log-viewer",
 				"jebbs.plantuml",
 				"tomoyukim.vscode-mermaid-editor",
-				"yzhang.markdown-all-in-one",
 				// "dbaeumer.vscode-eslint",
 				// "vscjava.vscode-java-pack",
 				"dhruv.maven-dependency-explorer",
 				"sonarsource.sonarlint-vscode",
 				"redhat.fabric8-analytics",
-				"ms-ossdata.vscode-postgresql"
+				"ms-ossdata.vscode-postgresql",
+				"github.vscode-github-actions"
 			]
 		}
 	}
