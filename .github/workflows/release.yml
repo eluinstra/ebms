@@ -14,7 +14,8 @@ name: Release
 #      JARs attached as assets
 #   6. Bump both to <next patch>-SNAPSHOT ("prepare for next development
 #      iteration"), commit + push
-#   7. Pin the new submodule commits in the parent repo and push to dev
+#   7. Update all submodules to their branch tips and pin them in the parent
+#      repo (release commit captures the state of every module), push to dev
 #   8. Wait for the ci.yml run triggered by the pin to finish green
 #
 # Nothing is published to Maven Central or GitHub Packages; the built JARs
@@ -211,9 +212,26 @@ jobs:
         env:
           VERSION: ${{ steps.check.outputs.version }}
         run: |
+          # Update every submodule to the tip of its configured branch, so the
+          # release commit captures the current state of ALL modules
+          # (documentation, ebms-docker, ebms-perftest-setup in addition to
+          # ebms-core/ebms-admin, which are already at the dev-2.20.x tips)
+          git submodule update --remote --checkout --quiet
           # ignore=all in .gitmodules makes plain `git add` skip gitlinks
-          git add -f ebms-core ebms-admin
-          git commit -m "release: pin ebms-core and ebms-admin to ${VERSION}"
+          git add -f ebms-core ebms-admin documentation ebms-docker ebms-perftest-setup
+          # ignore=all also hides gitlink changes from git diff/status, so
+          # compare the SHAs directly to decide whether there is a change to commit
+          changed=0
+          for d in ebms-core ebms-admin documentation ebms-docker ebms-perftest-setup; do
+            if [ "$(git -C "$d" rev-parse HEAD)" != "$(git rev-parse HEAD:$d)" ]; then
+              changed=1
+            fi
+          done
+          if [ "$changed" = "1" ]; then
+            git commit -m "release: pin submodules to current state (${VERSION})"
+          else
+            echo "no submodule pin changes"
+          fi
           git push origin HEAD:dev
 
       - name: Wait for CI to go green
