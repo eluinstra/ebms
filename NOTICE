@@ -1,5 +1,5 @@
 EbMS 2.0 (nl.clockwork.ebms)
-Copyright 2011 Clockwork
+Copyright 2011 - 2026 Clockwork
 
 This product includes software developed at
 The Apache Software Foundation (http://www.apache.org/)
@@ -7,9 +7,9 @@ under Apache License, Version 2.0
 
 Components included in this distribution:
 - ebms-core: Java EbMS Adapter
-  Copyright 2011 Clockwork
+  Copyright 2011 - 2026 Clockwork
 - ebms-admin: EbMS Admin Console
-  Copyright 2013 Clockwork
+  Copyright 2013 - 2026 Clockwork
 
 This product includes the following schemas and specifications
 developed by the W3C consortium (http://www.w3c.org):
@@ -22,3 +22,36 @@ This product includes the following schemas and specifications
 developed by the OASIS (http://www.oasis-open.org/):
 - http://www.oasis-open.org/committees/ebxml-cppa/schema/cpp-cpa-2_0.xsd
 - http://www.oasis-open.org/committees/ebxml-msg/schema/msg-header-2_0.xsd
+
+This distribution bundles third-party components. The generated
+THIRD-PARTY.txt file in each jar lists the components and the license
+under which each component is distributed. In particular:
+
+- The ebms-db2-db-plugin depends on the IBM DB2 JDBC Driver (jcc),
+  licensed under the IBM International Program License Agreement
+  (IPLA). Because the IPLA does not clearly permit redistribution,
+  the driver is not bundled; it must be supplied by the deployment
+  environment (see the plugin's pom.xml).
+- The ebms-oracle-db-plugin bundles Oracle Database JDBC driver
+  (ojdbc11), licensed under the Oracle Free Use Terms and Conditions
+  (FUTC). The driver is not modified and the FUTC license text is
+  included in META-INF/license.txt of the jar. Redistribution is
+  permitted only under the conditions of the FUTC.
+- The ebms-postgres-db-plugin bundles the PostgreSQL JDBC driver,
+  licensed under the BSD 2-Clause license.
+- The ebms-mariadb-db-plugin bundles the MariaDB Java client,
+  licensed under the GNU Lesser General Public License, version 2.1
+  or later (LGPL-2.1-or-later).
+- The ebms-mssql-db-plugin bundles the Microsoft SQL Server JDBC
+  driver, licensed under the MIT license.
+- The ebms-h2-db-plugin bundles the H2 database engine, licensed
+  under the Mozilla Public License, version 2.0 (MPL-2.0).
+- The ebms-hsqldb-db-plugin bundles the HSQLDB database engine,
+  licensed under the HSQLDB license (a BSD-style license); the
+  license text is included in the jar (META-INF/hsqldb_lic.txt).
+- All database plugins bundle Flyway, licensed under the
+  Apache License, Version 2.0.
+- The ebms-ehcache-cache-plugin bundles Ehcache, licensed under the
+  Apache License, Version 2.0.
+- The ebms-hazelcast-cache-plugin bundles Hazelcast, licensed under
+  the Apache License, Version 2.0.

@@ -80,6 +80,7 @@ Common pitfalls
 - JDK mismatch: project sets jdk.version=17 in ebms-core/pom.xml
 - Multi-database plugins: tests may use H2/HSQDB locally; ensure CI uses a deterministic DB or matrix
 - Sonar configuration: sonar-project.properties and sonarlint-project.properties must reference only existing plugin paths (no messaging plugins)
+- Flyway migrations keep a static copyright header on purpose: `src/main/resources/db/migration/**` is excluded from license-maven-plugin (added in ebms-core pom.xml, 2026). Flyway checksums are content-based — editing an applied migration's header (or any byte) breaks existing databases on startup with FlywayValidateException. Never run header/format tools over db/migration.
 - Version consistency: update ${revision} in ebms-core/pom.xml and ensure sonarlint-project.properties matches
 - Submodule `ignore = all`: `.gitmodules` sets `ignore = all` on every submodule, which makes `git status` hide gitlink drift AND makes plain `git add <path>` silently skip pointer updates. Use `git add -f <submodule>` to stage a new commit, and commit the parent pointer so CI checks out the intended SHA.
 - Submodule version alignment: CI builds only the committed submodule SHAs. After a release, each submodule's dev branch must carry its post-release `-SNAPSHOT` version bump as a real commit (not just a local working-tree edit), and the parent repo must pin that commit — otherwise CI resolves the release version against Maven Central and fails.
