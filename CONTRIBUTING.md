@@ -34,3 +34,49 @@ When changing schema, SQL, or DB persistence behavior:
 - Document migration impact in PR notes and docs when applicable
 
 If in doubt, open an issue first.
+
+Releasing a version (maintainer)
+
+A release is done for ebms-core and ebms-admin together via the GitHub
+Actions workflow .github/workflows/release.yml (workflow_dispatch).
+
+Prerequisites:
+- Everything that must be part of the release is committed and pushed to the
+  dev-2.20.x branch of both eluinstra/ebms-core and eluinstra/ebms-admin.
+  The workflow releases from the remote tip of those branches, so the
+  submodule pins in the parent repo do not matter.
+- CI on dev is green.
+- Repository secret SUBMODULE_GITHUB_TOKEN is set: a PAT (or GitHub App
+  token) with write access to eluinstra/ebms-core and eluinstra/ebms-admin
+  (the job token can only write to the parent repo).
+
+Trigger:
+1. GitHub -> eluinstra/ebms -> Actions -> Release -> Run workflow
+2. Branch: dev, version: e.g. 2.20.9 (must match MAJOR.MINOR.PATCH)
+
+What the workflow does (in order):
+1. Bump the version in ebms-core/pom.xml (<revision>) and ebms-admin/pom.xml
+2. Build ebms-core (skipTests) and build + test ebms-admin
+3. Commit "release <v>" and tag ebms-core-<v> / ebms-admin-<v>, push branch + tags
+4. Create a GitHub release on each submodule repo with the built JARs as
+   assets (core jar / admin fat jar + all db + cache plugins) and an
+   auto-generated changelog (commit subjects since the previous release tag)
+5. Bump both to <next patch>-SNAPSHOT, commit and push
+6. Pin the new submodule commits in the parent repo and push to dev
+7. Wait for the CI run on dev to finish green
+
+Results:
+- https://github.com/eluinstra/ebms-core/releases/tag/ebms-core-<v>
+- https://github.com/eluinstra/ebms-admin/releases/tag/ebms-admin-<v>
+
+Notes:
+- Nothing is published to Maven Central or GitHub Packages; the JARs are
+  only attached to the GitHub releases.
+- The workflow is safe to re-run when it fails before "Commit and tag
+  releases" (e.g. build or test failure): just fix the cause and re-run.
+  Once the release commits/tags have been pushed it is NOT safe to re-run
+  (the version bump would be a no-op commit); repair manually instead -
+  the tags already exist, and a GitHub release can be created for an
+  existing tag or the existing release for the tag is reused.
+- Keep CHANGELOG.md updated under Unreleased before triggering, since the
+  release body is generated from commit subjects, not from CHANGELOG.md.

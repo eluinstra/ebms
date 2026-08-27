@@ -52,6 +52,13 @@ CI/CD
 
 - Default branch: dev
 - GitHub Actions: ci.yml (PR/push build & test)
+- Release: release.yml (workflow_dispatch, input: version). Parent-driven
+  release of ebms-core + ebms-admin from the tip of dev-2.20.x: bump, build
+  + test, commit + tag + push both submodules, create GitHub releases with
+  the built JARs as assets, bump both to <next patch>-SNAPSHOT, pin the
+  submodules in the parent, wait for CI. Requires secret
+  SUBMODULE_GITHUB_TOKEN (write access to both submodule repos). See
+  CONTRIBUTING.md ("Releasing a version") for prerequisites and recovery.
 - Dependabot: weekly updates for maven, npm (documentation), and github-actions
 - Static analysis: SonarQube integration configured
 
@@ -85,3 +92,4 @@ Common pitfalls
 - Submodule `ignore = all`: `.gitmodules` sets `ignore = all` on every submodule, which makes `git status` hide gitlink drift AND makes plain `git add <path>` silently skip pointer updates. Use `git add -f <submodule>` to stage a new commit, and commit the parent pointer so CI checks out the intended SHA.
 - Submodule version alignment: CI builds only the committed submodule SHAs. After a release, each submodule's dev branch must carry its post-release `-SNAPSHOT` version bump as a real commit (not just a local working-tree edit), and the parent repo must pin that commit — otherwise CI resolves the release version against Maven Central and fails.
 - Submodule remotes need auth: submodule push URLs are plain HTTPS, so `git push` inside a submodule prompts for credentials. Push with the token, e.g. `git push https://x-access-token:${TOKEN}@github.com/eluinstra/<repo>.git <branch>`.
+- Submodule pins must point at commits that exist on the remote: CI checks out the pinned SHAs with a shallow fetch, so pinning a local/unpushed commit breaks every CI run with `upload-pack: not our ref <sha>`. Push the submodule commit first, then pin it in the parent (happened with the `documentation` submodule in 2026-08: a license commit made on stale local history was pinned but never pushed).
