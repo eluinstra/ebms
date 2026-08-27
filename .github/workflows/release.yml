@@ -15,16 +15,26 @@ name: Release
 #   6. Bump both to <next patch>-SNAPSHOT ("prepare for next development
 #      iteration"), commit + push
 #   7. Update all submodules to their branch tips and pin them in the parent
-#      repo (release commit captures the state of every module), push to dev
+#      repo (the pin commit captures the post-release state of every module:
+#      core/admin at their <next patch>-SNAPSHOT commits), push to dev
 #   8. Wait for the ci.yml run triggered by the pin to finish green
 #
 # Nothing is published to Maven Central or GitHub Packages; the built JARs
 # are attached to the GitHub releases only.
 #
 # Required repository secret:
-#   SUBMODULE_GITHUB_TOKEN - a PAT (or GitHub App token) with write access
-#     to eluinstra/ebms-core and eluinstra/ebms-admin. The job token can
-#     only write to the parent repo.
+#   SUBMODULE_GITHUB_TOKEN - a PAT (or GitHub App token). Minimal
+#     permissions: Contents: Read and write on eluinstra/ebms-core and
+#     eluinstra/ebms-admin (push the dev-2.20.x branch, push the tags,
+#     create the GitHub releases, upload the JAR assets). Nothing else is
+#     needed: no Actions/Workflows/Pull-requests permissions, no admin, and
+#     no access to the other submodules (they are only fetched/read).
+#     The job token can only write to the parent repo, hence a separate
+#     token for the submodules.
+#
+# Job token permissions (declared in `permissions:` below, also minimal):
+#   contents: write - push the submodule pin to dev
+#   actions: read   - "Wait for CI to go green" polls the Actions API
 #
 # Optional approval gate: create an environment named "release"
 # (Settings -> Environments) with required reviewers, then uncomment the
@@ -39,7 +49,8 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: write  # push the submodule pin to dev
+  actions: read    # "Wait for CI to go green" polls the Actions API
 
 concurrency:
   group: release
@@ -67,6 +78,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
           submodules: recursive
           fetch-depth: 0
 
@@ -213,9 +225,10 @@ jobs:
           VERSION: ${{ steps.check.outputs.version }}
         run: |
           # Update every submodule to the tip of its configured branch, so the
-          # release commit captures the current state of ALL modules
+          # pin commit captures the current state of ALL modules
           # (documentation, ebms-docker, ebms-perftest-setup in addition to
-          # ebms-core/ebms-admin, which are already at the dev-2.20.x tips)
+          # ebms-core/ebms-admin, which are already at the dev-2.20.x tips,
+          # i.e. their <next patch>-SNAPSHOT commits from the step above)
           git submodule update --remote --checkout --quiet
           # ignore=all in .gitmodules makes plain `git add` skip gitlinks
           git add -f ebms-core ebms-admin documentation ebms-docker ebms-perftest-setup
@@ -228,7 +241,7 @@ jobs:
             fi
           done
           if [ "$changed" = "1" ]; then
-            git commit -m "release: pin submodules to current state (${VERSION})"
+            git commit -m "chore: update submodule pins after release ${VERSION} (next dev iteration)"
           else
             echo "no submodule pin changes"
           fi

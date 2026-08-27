@@ -47,8 +47,14 @@ Prerequisites:
   submodule pins in the parent repo do not matter.
 - CI on dev is green.
 - Repository secret SUBMODULE_GITHUB_TOKEN is set: a PAT (or GitHub App
-  token) with write access to eluinstra/ebms-core and eluinstra/ebms-admin
-  (the job token can only write to the parent repo).
+  token). Minimal permissions: "Contents: Read and write" on
+  eluinstra/ebms-core and eluinstra/ebms-admin (used to push the
+  dev-2.20.x branch, push the tags, create the GitHub releases and upload
+  the JAR assets). Nothing else is required - the other submodules are
+  only read, and Actions/Workflows/Pull-requests permissions are not used.
+  The job token can only write to the parent repo, hence a separate token
+  for the submodules. The workflow itself declares only contents:write
+  (push the pin to dev) and actions:read (CI polling).
 
 Trigger:
 1. GitHub -> eluinstra/ebms -> Actions -> Release -> Run workflow

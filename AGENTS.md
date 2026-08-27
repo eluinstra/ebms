@@ -57,7 +57,8 @@ CI/CD
   + test, commit + tag + push both submodules, create GitHub releases with
   the built JARs as assets, bump both to <next patch>-SNAPSHOT, pin the
   submodules in the parent, wait for CI. Requires secret
-  SUBMODULE_GITHUB_TOKEN (write access to both submodule repos). See
+  SUBMODULE_GITHUB_TOKEN (minimal: Contents read+write on both submodule
+  repos; the job token declares only contents:write + actions:read). See
   CONTRIBUTING.md ("Releasing a version") for prerequisites and recovery.
 - Dependabot: weekly updates for maven, npm (documentation), and github-actions
 - Static analysis: SonarQube integration configured
