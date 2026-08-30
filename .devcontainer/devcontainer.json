@@ -7,7 +7,7 @@
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:4.1.0": {},
 		"ghcr.io/devcontainers/features/node:2.1.0": {},
-		"ghcr.io/devcontainers/features/java:1.8.1": {
+		"ghcr.io/devcontainers/features/java:1.8.2": {
 			"installMaven": true,
 			"version": "17",
 			"jdkDistro": "tem",
@@ -18,14 +18,15 @@
 				"libxtst6",
 				"libxi6",
 				"libxrender1",
-				"graphviz"
+				"graphviz",
+				"tmux"
 			]
 		}
 	},
 	"containerUser": "vscode",
 	"remoteUser": "vscode",
   "postCreateCommand": "curl -LsSf https://astral.sh/uv/install.sh | sh && npm install -g @openhands/agent-canvas",
-	"postStartCommand": "nohup bash -c 'agent-canvas --port 7000 &'",
+  "postStartCommand": "tmux has-session -t canvas 2>/dev/null || (tmux new-session -d -s canvas && tmux send-keys -t canvas 'agent-canvas --port 7000' Enter)",
 	"appPort": ["7000:7000"],
 	"forwardPorts": [
 		5432,

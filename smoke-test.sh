@@ -52,6 +52,12 @@
 #      --rebuild   force rebuild of the ebms-admin jar (mvn package)
 #      --keep      leave both adapters running after the test (no teardown)
 #
+#  Environment
+#    SMOKE_LOG_DIR  optional directory; when the test fails, the workdir
+#                   (adapter1.log, curl.err, props, ...) and the overheid
+#                   container log are copied there (used by the release
+#                   workflow to upload the logs as an artifact)
+#
 #  Requirements: JDK 17, Maven, Docker (daemon + compose), curl, jq
 #===============================================================================
 
@@ -115,9 +121,10 @@ require_cmd() {
 }
 
 port_in_use() {
-  (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
-  local rc=$?
-  exec 3>&- 2>/dev/null || true
+  # no bare "exec" redirects here: they persist in the main shell and would
+  # silently move its stderr to /dev/null for the rest of the script
+  local rc=1
+  (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null && rc=0
   return $rc
 }
 
@@ -168,6 +175,12 @@ cleanup() {
 trap 'rc=$?; if (( rc != 0 )) && [[ -n "$WORK_DIR" && -f "$WORK_DIR/adapter1.log" ]]; then
   echo; echo "--- adapter1.log (last 40 lines) ---"; tail -n 40 "$WORK_DIR/adapter1.log"
   echo "--- docker logs: overheid (last 20 lines) ---"; docker logs --tail 20 overheid 2>&1 || true
+  if [[ -n "${SMOKE_LOG_DIR:-}" ]]; then
+    mkdir -p "$SMOKE_LOG_DIR" 2>/dev/null || true
+    cp -a "$WORK_DIR/." "$SMOKE_LOG_DIR/" 2>/dev/null || true
+    docker logs overheid > "$SMOKE_LOG_DIR/overheid-docker.log" 2>&1 || true
+    echo "smoke test logs saved to $SMOKE_LOG_DIR"
+  fi
 fi; cleanup' EXIT
 
 #--- pre-flight ----------------------------------------------------------------

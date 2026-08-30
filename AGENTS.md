@@ -54,9 +54,11 @@ CI/CD
 - GitHub Actions: ci.yml (PR/push build & test)
 - Release: release.yml (workflow_dispatch, input: version). Parent-driven
   release of ebms-core + ebms-admin from the tip of dev-2.20.x: bump, build
-  + test, commit + tag + push both submodules, create GitHub releases with
-  the built JARs as assets, bump both to <next patch>-SNAPSHOT, pin the
-  submodules in the parent, wait for CI. Requires secret
+  + test, run the two-adapter smoke test (smoke-test.sh: built jar vs the
+  published docker image; failure aborts the release before any tag/push),
+  commit + tag + push both submodules, create GitHub releases with the built
+  JARs as assets, bump both to <next patch>-SNAPSHOT, pin the submodules in
+  the parent, wait for CI. Requires secret
   SUBMODULE_GITHUB_TOKEN (minimal: Contents read+write on both submodule
   repos; the job token declares only contents:write + actions:read). See
   CONTRIBUTING.md ("Releasing a version") for prerequisites and recovery.
@@ -94,3 +96,5 @@ Common pitfalls
 - Submodule version alignment: CI builds only the committed submodule SHAs. After a release, each submodule's dev branch must carry its post-release `-SNAPSHOT` version bump as a real commit (not just a local working-tree edit), and the parent repo must pin that commit — otherwise CI resolves the release version against Maven Central and fails.
 - Submodule remotes need auth: submodule push URLs are plain HTTPS, so `git push` inside a submodule prompts for credentials. Push with the token, e.g. `git push https://x-access-token:${TOKEN}@github.com/eluinstra/<repo>.git <branch>`.
 - Submodule pins must point at commits that exist on the remote: CI checks out the pinned SHAs with a shallow fetch, so pinning a local/unpushed commit breaks every CI run with `upload-pack: not our ref <sha>`. Push the submodule commit first, then pin it in the parent (happened with the `documentation` submodule in 2026-08: a license commit made on stale local history was pinned but never pushed).
+- Running the embedded server (`nl.clockwork.ebms.server.embedded.startup.StartEmbedded`) locally: (1) `Start.getProperty`/`getBooleanProperty` (SystemInterface) read ONLY `-D` system properties — the classpath `default.properties` is seen only by Spring `@Value` beans — so connector flags must be passed as vmArgs, e.g. `-Dapi.ssl.enabled=true -Dapi.ssl.keyStorePassword=... -Dapi.health.enabled=true`. (2) The `-ssl`/`-soap`/`-health` CLI args are no-ops in this module. (3) `database.start=true` is required to start the in-process H2 TCP server on 9092 (otherwise Hikari fails with "Connection refused: localhost:9092"); it is read via `@Value`, so a vmArg or an `ebms-server.properties` in the working dir both work.
+- Spring: declare `BeanPostProcessor` factory methods `static` and inject `Environment` instead of relying on `@Value` fields of the enclosing `@Configuration` class. A non-static `@Bean` returning a `BeanPostProcessor` forces early instantiation of the config class, before `@Value` injection, leaving fields as raw `${...}` placeholders (hit in `MessageEventListenerConfig.messageEventListenerFilterProcessor`, fixed 2026-08).

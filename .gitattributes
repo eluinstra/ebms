@@ -1,0 +1,42 @@
+# Normalize all text files to LF at checkout, but let git auto-detect what
+# counts as text. This keeps shell scripts, workflows, and properties files
+# consistent across platforms and avoids CRLF/LF churn on the git diff.
+* text=auto eol=lf
+
+# Force LF for things that must keep executable line endings.
+*.sh        text eol=lf
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=lf
+Makefile    text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.properties text eol=lf
+*.xml       text eol=lf
+
+# Keep generated/build and image assets as binary so git doesn't rewrite them.
+*.jar       binary
+*.war       binary
+*.class     binary
+*.zip       binary
+*.tar       binary
+*.tar.gz    binary
+*.gz        binary
+*.7z        binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+*.ttf       binary
+*.woff      binary
+*.woff2     binary
+*.eot       binary
+*.mp4       binary
+*.webm      binary
+*.keystore  binary
+*.jks       binary
+*.p12       binary
+*.pfx       binary
+*.key       binary

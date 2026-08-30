@@ -9,15 +9,21 @@ name: Release
 #   1. Check out ebms-core and ebms-admin at the tip of dev-2.20.x
 #   2. Bump the version to the target release version
 #   3. Build and test both (same commands as ci.yml)
-#   4. Commit + tag + push both submodules (ebms-core-<v>, ebms-admin-<v>)
-#   5. Create a GitHub release per submodule on the new tag, with the built
+#   4. Smoke test (smoke-test.sh): adapter 1 = the just-built ebms-admin jar
+#      running locally (StartEmbedded SSL), adapter 2 = the published
+#      eluinstra/ebms-adapter-bin docker image; verifies bidirectional ping +
+#      message exchange (the release candidate must be able to message an
+#      already-deployed adapter). A failure aborts the release before any
+#      tag, push or GitHub release is created
+#   5. Commit + tag + push both submodules (ebms-core-<v>, ebms-admin-<v>)
+#   6. Create a GitHub release per submodule on the new tag, with the built
 #      JARs attached as assets
-#   6. Bump both to <next patch>-SNAPSHOT ("prepare for next development
+#   7. Bump both to <next patch>-SNAPSHOT ("prepare for next development
 #      iteration"), commit + push
-#   7. Update all submodules to their branch tips and pin them in the parent
+#   8. Update all submodules to their branch tips and pin them in the parent
 #      repo (the pin commit captures the post-release state of every module:
 #      core/admin at their <next patch>-SNAPSHOT commits), push to dev
-#   8. Wait for the ci.yml run triggered by the pin to finish green
+#   9. Wait for the ci.yml run triggered by the pin to finish green
 #
 # Nothing is published to Maven Central or GitHub Packages; the built JARs
 # are attached to the GitHub releases only.
@@ -59,7 +65,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60  # build + test + smoke test + up to 30 min CI wait
     # environment: release
     steps:
       - name: Validate version input
@@ -141,6 +147,25 @@ jobs:
           done
           echo "ebms-core assets:"; ls dist/ebms-core
           echo "ebms-admin assets:"; ls dist/ebms-admin
+
+      - name: Smoke test (two-adapter message exchange)
+        # adapter 1 = the just-built ebms-admin jar (local StartEmbedded SSL,
+        # launched like the "Launch StartEmbedded SSL" VSCode config), adapter
+        # 2 = the published docker image from ebms-admin/docker-compose.yml:
+        # ping + sendMessage (both directions) + sendMessageMTOM. On failure
+        # the script saves its workdir + the overheid container log to
+        # SMOKE_LOG_DIR, uploaded by the next step.
+        env:
+          SMOKE_LOG_DIR: ${{ runner.temp }}/ebms-smoke-logs
+        run: ./smoke-test.sh
+
+      - name: Upload smoke test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ebms-smoke-logs
+          path: ${{ runner.temp }}/ebms-smoke-logs
+          if-no-files-found: ignore
 
       - name: Commit and tag releases
         env:

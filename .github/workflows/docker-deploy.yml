@@ -1,0 +1,153 @@
+name: Deploy Docker images
+
+# Build + publish the multi-arch Docker images from ebms-docker/images/
+# (see ebms-docker/README.md):
+#   eluinstra/ebms-adapter-bin    base adapter image (no db plugin)
+#   eluinstra/ebms-adapter-pg     + hazelcast cache + postgres db plugin
+#   eluinstra/ebms-adapter-test   + h2 db plugin (used by smoke tests)
+#
+# The Dockerfiles download the release JARs from the eluinstra/ebms-admin
+# GitHub release at build time, so run the Release workflow first and pass
+# that version here, e.g. 2.20.9.
+#
+# What it does (mirrors the local scripts in ebms-docker/images/):
+#   1. Validate the version input and check the GitHub release exists
+#      (fail fast instead of a curl failure inside the image build)
+#   2. Build each image for linux/amd64 + linux/arm64 (arm64 via QEMU) and
+#      push the per-arch tags (2.20.9-amd64, 2.20-amd64, latest-amd64, ...)
+#   3. Create and push the multi-arch manifests (2.20.9, 2.20, latest)
+#
+# Trigger: Actions tab -> Deploy Docker images -> Run workflow
+# (branch: dev), enter the version
+#
+# Required repository secrets:
+#   DOCKERHUB_USERNAME - Docker Hub account that owns the images (eluinstra)
+#   DOCKERHUB_TOKEN    - Docker Hub access token with write access to
+#                        eluinstra/ebms-adapter-bin, -pg and -test
+#
+# Optional approval gate: create an environment named "release"
+# (Settings -> Environments) with required reviewers, then uncomment the
+# `environment` line below.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'EbMS release version to build the images for, e.g. 2.20.9'
+        required: true
+        type: string
+
+permissions:
+  contents: read  # checkout only; the Docker Hub push uses the DOCKERHUB_* secrets
+
+concurrency:
+  group: docker-deploy
+  cancel-in-progress: true
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # environment: release
+    steps:
+      - name: Validate version input
+        id: check
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must be MAJOR.MINOR.PATCH, got: $VERSION"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "major=${VERSION%.*}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Init ebms-docker submodule
+        run: git submodule update --init --depth 1 ebms-docker
+
+      - name: Fail fast if the release does not exist yet
+        # The Dockerfiles curl the JARs from the GitHub release at build
+        # time; check now (first byte only) so a missing release fails with
+        # a clear message instead of a curl failure inside the image build
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          url="https://github.com/eluinstra/ebms-admin/releases/download/ebms-admin-${VERSION}/ebms-admin-${VERSION}.jar"
+          code=$(curl -sL -r 0-0 -o /dev/null -w '%{http_code}' "$url")
+          if [ "$code" != "200" ] && [ "$code" != "206" ]; then
+            echo "::error::GitHub release ebms-admin-${VERSION} not found (HTTP ${code}). Run the Release workflow first."
+            exit 1
+          fi
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: amd64,arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push images
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          MAJOR: ${{ steps.check.outputs.major }}
+          REPO: eluinstra/
+        run: |
+          set -eu
+          # same images + tag scheme as ebms-docker/images/env.sh + build.sh
+          IMAGES="ebms-adapter-bin ebms-adapter-pg ebms-adapter-test"
+          for ARCH in amd64 arm64; do
+            for IMAGE in $IMAGES; do
+              # pg and test are built FROM the per-arch bin image; the
+              # docker-image build context reads it from the local daemon,
+              # so bin must have been --load'ed (or pulled) beforehand
+              EXTRA=()
+              if [ "$IMAGE" != "ebms-adapter-bin" ]; then
+                EXTRA=(--build-context "eluinstra/ebms-adapter-bin:${VERSION}=docker-image://${REPO}ebms-adapter-bin:${VERSION}-${ARCH}")
+              fi
+              echo "Building ${REPO}${IMAGE}:${VERSION}-${ARCH}"
+              docker buildx build \
+                --platform "linux/${ARCH}" \
+                --build-arg "EBMS_VERSION=${VERSION}" \
+                "${EXTRA[@]}" \
+                -t "${REPO}${IMAGE}:${MAJOR}-${ARCH}" \
+                -t "${REPO}${IMAGE}:${VERSION}-${ARCH}" \
+                -t "${REPO}${IMAGE}:latest-${ARCH}" \
+                --load \
+                "ebms-docker/images/${IMAGE}"
+              docker image push "${REPO}${IMAGE}:${MAJOR}-${ARCH}"
+              docker image push "${REPO}${IMAGE}:${VERSION}-${ARCH}"
+              docker image push "${REPO}${IMAGE}:latest-${ARCH}"
+            done
+          done
+
+      - name: Publish multi-arch manifests
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          MAJOR: ${{ steps.check.outputs.major }}
+          REPO: eluinstra/
+        run: |
+          set -eu
+          # same tags as ebms-docker/images/manifest.sh
+          IMAGES="ebms-adapter-bin ebms-adapter-pg ebms-adapter-test"
+          for IMAGE in $IMAGES; do
+            for TAG in "$MAJOR" "$VERSION" "latest"; do
+              TARGET="${REPO}${IMAGE}:${TAG}"
+              docker manifest rm "$TARGET" >/dev/null 2>&1 || true
+              docker manifest create "$TARGET" \
+                --amend "${REPO}${IMAGE}:${TAG}-amd64" \
+                --amend "${REPO}${IMAGE}:${TAG}-arm64"
+              docker manifest annotate "$TARGET" "${REPO}${IMAGE}:${TAG}-amd64" --arch amd64
+              docker manifest annotate "$TARGET" "${REPO}${IMAGE}:${TAG}-arm64" --arch arm64
+              docker manifest push --purge "$TARGET"
+            done
+          done

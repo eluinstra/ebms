@@ -1,2 +1,51 @@
+# SonarQube / SonarLint local artifacts
 .scannerwork
 .sonar-inventory*
+
+# Environment & local config overrides
+.env
+.env.*
+!.env.example
+*.local
+# Local embedded-server override (see AGENTS.md, StartEmbedded)
+ebms-server.properties
+
+# Build output
+target/
+build/
+out/
+*.class
+*.jar
+!docs/**/*.jar
+
+# Java
+hs_err_pid*.log
+*.hprof
+
+# Local runtime data (embedded H2 / Raft)
+h2/
+raft-log/
+
+# Dependencies
+node_modules/
+vendor/
+
+# IDE / editor
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+.factory/
+
+# Agent / AI tooling artifacts
+.cursor/
+.claude/
+.openhands/
+
+# OS
+.DS_Store
+Thumbs.db

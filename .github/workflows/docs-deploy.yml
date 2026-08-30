@@ -1,0 +1,60 @@
+name: Deploy documentation
+
+# Build the Docusaurus site from the pinned `documentation` submodule and
+# deploy it to GitHub Pages.
+#
+# Deployment (per documentation/README.md): `yarn deploy` builds the site and
+# force-pushes the output to the `gh-pages` branch of the repo named by
+# organizationName/projectName in documentation/docusaurus.config.ts
+# (eluinstra/ebms-admin). GitHub Pages on that repo is set to
+# "Deploy from a branch" -> gh-pages and serves the site at
+# https://eluinstra.github.io/ebms-admin/ (matching url/baseUrl there).
+#
+# `yarn deploy` authenticates the push via the GIT_USER/GIT_PASS env vars
+# (not via the checkout token), so it needs a token with Contents write on
+# eluinstra/ebms-admin: SUBMODULE_GITHUB_TOKEN, which release.yml already
+# requires for exactly that repo. No extra secrets are needed.
+
+on:
+  push:
+    branches: [ dev ]
+  workflow_dispatch:
+
+permissions:
+  contents: read  # checkout only; the deploy push uses SUBMODULE_GITHUB_TOKEN
+
+concurrency:
+  group: docs-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
+
+      - name: Init documentation submodule
+        run: git submodule update --init --depth 1 documentation
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: yarn  # key from documentation/yarn.lock (matched by default glob)
+
+      - name: Install dependencies
+        working-directory: documentation
+        run: yarn install --frozen-lockfile
+
+      - name: Build and deploy to GitHub Pages
+        working-directory: documentation
+        env:
+          GIT_USER: x-access-token
+          GIT_PASS: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
+          GIT_USER_NAME: github-actions[bot]
+          GIT_USER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: yarn deploy
