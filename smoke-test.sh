@@ -6,28 +6,35 @@
 # setup with the same REST calls as ebms-core/core/resources/test/ebms.rest:
 #
 #  Adapter 1 ("digipoort", local)
-#    Launched exactly like the "Launch StartEmbedded SSL" configuration in
-#    .vscode/launch.json (same mainClass, args and vmArgs), from the shaded
-#    ebms-admin jar plus the H2 plugin jar (the plugin is "provided" scope,
-#    which is why the VSCode classpath contains it but the jar doesn't):
+#    Launched exactly like the "Launch StartEmbedded SSL Server"
+#    configuration in .vscode/launch.json (same mainClass and vmArgs), from
+#    the shaded ebms-server jar (ebms-core) plus the H2 plugin jar (the
+#    plugin is "provided" scope, which is why the VSCode classpath contains
+#    it but the jar doesn't). The core server is property-driven (no
+#    -ssl/-soap/-health CLI flags): the web/REST+SOAP/health connectors and
+#    their SSL are enabled with -D api.* flags; the EbMS connector
+#    (https://localhost:8888/ebms) comes from the server's default.properties.
 #
 #      java -Djavax.net.ssl.trustStore= -Dlog4j.configurationFile=log4j2.xml \
 #           -Debms.jdbc.update=true -Debms.verifyHostnames=false \
-#           -cp <ebms-admin jar>:<ebms-h2-db-plugin jar> \
-#           nl.clockwork.ebms.admin.StartEmbedded -ssl -soap -health
+#           -Dapi.ssl.enabled=true -Dapi.ssl.keyStorePassword=my-secret-password \
+#           -Dapi.health.enabled=true \
+#           -cp <ebms-server jar>:<ebms-h2-db-plugin jar> \
+#           nl.clockwork.ebms.server.embedded.startup.StartEmbedded
 #
 #      REST API : https://localhost:8443/service/rest/v19   (self-signed TLS)
 #      EbMS     : https://localhost:8888/ebms
 #      Health   : http://localhost:8008/health
 #      DB       : embedded H2 in a throw-away working directory
-#                 (ebms-admin/ebms-admin.embedded.properties is copied there,
-#                  which sets database.start=true)
+#                 (-Ddatabase.start=true starts the in-process H2 on 9092)
 #
 #  Adapter 2 ("overheid", docker)
-#    Started from ebms-admin/docker-compose.yml (image
-#    eluinstra/ebms-adapter-bin:2.20.4). Its one-shot init container loads
-#    the CPA and the URL mapping (https://localhost:8888/ebms ->
-#    https://host.docker.internal:8888/ebms) that lets it reach adapter 1.
+#    Started from docker-compose.yml (published image
+#    eluinstra/ebms-adapter-bin:2.20.4; its Dockerfile lives in the ebms-core
+#    project at ebms-core/docker/ebms-adapter-bin/Dockerfile). Its one-shot
+#    init container loads the CPA and the URL mapping
+#    (https://localhost:8888/ebms -> https://host.docker.internal:8888/ebms)
+#    that lets it reach adapter 1.
 #
 #      REST API : http://localhost:8000/service/rest/v19
 #      EbMS     : https://localhost:8088/ebms
@@ -49,7 +56,7 @@
 #
 #  Usage
 #    ./smoke-test.sh [--rebuild] [--keep] [--help]
-#      --rebuild   force rebuild of the ebms-admin jar (mvn package)
+#      --rebuild   force rebuild of the ebms-server jar (mvn package)
 #      --keep      leave both adapters running after the test (no teardown)
 #
 #  Environment
@@ -65,12 +72,10 @@ set -u
 
 #--- configuration -------------------------------------------------------------
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ADMIN_DIR="$REPO_ROOT/ebms-admin"
 CORE_DIR="$REPO_ROOT/ebms-core"
-COMPOSE_FILE="$ADMIN_DIR/docker-compose.yml"
+COMPOSE_FILE="$CORE_DIR/docker-compose.yml"
 COMPOSE_PROJECT="ebms-smoke-test"
-CPA_FILE="$ADMIN_DIR/resources/CPAs/cpaStubEBF.rm.https.signed.xml"
-EMBEDDED_PROPS="$ADMIN_DIR/ebms-admin.embedded.properties"
+CPA_FILE="$CORE_DIR/resources/CPAs/cpaStubEBF.rm.https.signed.xml"
 
 # endpoints (see ebms-core/core/resources/test/ebms.rest)
 REST1="https://localhost:8443/service/rest/v19"   # adapter 1, self-signed TLS
@@ -110,6 +115,7 @@ DC=()
 info()  { echo -e "\033[1;34m==> $*\033[0m"; }
 ok()    { echo -e "  \033[1;32m[PASS]\033[0m $1"; PASS=$((PASS+1)); }
 bad()   { echo -e "  \033[1;31m[FAIL]\033[0m $1"; FAIL=$((FAIL+1)); }
+warn()  { echo -e "  \033[1;33m[WARN]\033[0m $1"; }
 
 die() {
   echo -e "\033[1;31mERROR: $*\033[0m" >&2
@@ -199,29 +205,48 @@ for p in $NEEDED_PORTS; do
 done
 [[ -f "$COMPOSE_FILE" ]] || die "compose file not found: $COMPOSE_FILE"
 [[ -f "$CPA_FILE" ]] || die "CPA file not found: $CPA_FILE"
-[[ -f "$EMBEDDED_PROPS" ]] || die "embedded properties not found: $EMBEDDED_PROPS"
 
 #--- working directory (throw-away, keeps repo clean) --------------------------
+# adapter 1 (the ebms-core server) starts its in-process H2 via -Ddatabase.start=true,
+# so no properties file needs to be copied here
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/ebms-smoke.XXXXXX")
-cp "$EMBEDDED_PROPS" "$WORK_DIR/"
 info "Working directory: $WORK_DIR"
 
-#--- adapter 1 artifacts ---------------------------------------------------------
-ADMIN_JAR=$(ls "$ADMIN_DIR"/target/ebms-admin-*.jar 2>/dev/null | grep -v '^.*original-.*' | grep -v sources | grep -v javadoc | head -1 || true)
+#--- adapter 1 artifacts (ebms-core server jar + H2 plugin jar) --------------------
+SERVER_JAR=$(ls "$CORE_DIR"/server/target/ebms-server-*.jar 2>/dev/null | grep -v original- | grep -v sources | grep -v javadoc | head -1 || true)
 H2_PLUGIN_JAR=$(ls "$CORE_DIR"/plugin/db/h2/target/ebms-h2-db-plugin-*.jar 2>/dev/null | grep -v original- | grep -v sources | grep -v javadoc | head -1 || true)
 if [[ -z "$H2_PLUGIN_JAR" ]]; then
   H2_PLUGIN_JAR=$(ls "$HOME"/.m2/repository/nl/clockwork/ebms/plugin/db/ebms-h2-db-plugin/*/*.jar 2>/dev/null | grep -v sources | grep -v javadoc | head -1 || true)
 fi
-if [[ $REBUILD -eq 1 || -z "$ADMIN_JAR" || -z "$H2_PLUGIN_JAR" ]]; then
-  info "Building ebms-admin jar (this can take a few minutes)..."
-  [[ -z "$H2_PLUGIN_JAR" ]] && mvn -B -q -f "$CORE_DIR/plugin/db/h2/pom.xml" install -DskipTests -Dspotless.apply.skip=true -Dspotless.check.skip=true -Dlicense.skip=true -Dlicense.skipAddThirdParty=true || die "H2 plugin build failed"
-  mvn -B -q -f "$ADMIN_DIR/pom.xml" package -DskipTests -Dspotless.apply.skip=true -Dspotless.check.skip=true -Dlicense.skip=true -Dlicense.skipAddThirdParty=true || die "ebms-admin build failed"
-  ADMIN_JAR=$(ls "$ADMIN_DIR"/target/ebms-admin-*.jar | grep -v original- | grep -v sources | grep -v javadoc | head -1)
+if [[ $REBUILD -eq 1 || -z "$SERVER_JAR" || -z "$H2_PLUGIN_JAR" ]]; then
+  info "Building the ebms-server jar (ebms-core reactor; this can take a few minutes)..."
+  mvn -B -q -f "$CORE_DIR/pom.xml" -pl server -am package -DskipTests -Ddependency-check.skip=true -Dspotless.apply.skip=true -Dspotless.check.skip=true -Dlicense.skip=true -Dlicense.skipAddThirdParty=true || die "ebms-server build failed"
+  SERVER_JAR=$(ls "$CORE_DIR"/server/target/ebms-server-*.jar | grep -v original- | grep -v sources | grep -v javadoc | head -1)
   H2_PLUGIN_JAR=$(ls "$CORE_DIR"/plugin/db/h2/target/ebms-h2-db-plugin-*.jar | grep -v original- | grep -v sources | grep -v javadoc | head -1)
 fi
-[[ -n "$ADMIN_JAR" && -n "$H2_PLUGIN_JAR" ]] || die "could not locate ebms-admin jar / H2 plugin jar"
-info "Using: $ADMIN_JAR"
+[[ -n "$SERVER_JAR" && -n "$H2_PLUGIN_JAR" ]] || die "could not locate ebms-server jar / H2 plugin jar"
+info "Using: $SERVER_JAR"
 info "Using: $H2_PLUGIN_JAR"
+
+# adapter 1 classpath: the shaded jar should carry Spring's JCL bridge, but this
+# environment's custom spring-core-7.0.8 depends on commons-logging, which the
+# shade config strips (ebms-core/pom.xml). When the jar has no org.apache.commons.logging
+# bridge, add the JCL jar from the local .m2 so the server can start. In a normal
+# build (real spring-core -> spring-jcl, not excluded) this is a no-op.
+EXTRA_CP=""
+if command -v jar >/dev/null 2>&1 \
+   && ! jar tf "$SERVER_JAR" 2>/dev/null | grep -qE 'org/(apache/commons/logging/LogFactory|springframework/jcl)'; then
+  # prefer the canonical spring-jcl bridge; otherwise the newest local commons-logging
+  JCL_JAR=$(find "$HOME"/.m2/repository -path '*springframework/spring-jcl/*/*.jar' 2>/dev/null | grep -v -e sources -e javadoc | sort -rV | head -1 || true)
+  [[ -z "$JCL_JAR" ]] && JCL_JAR=$(find "$HOME"/.m2/repository -path '*commons-logging/commons-logging/*/*.jar' 2>/dev/null | grep -v -e sources -e javadoc | sort -rV | head -1 || true)
+  if [[ -n "$JCL_JAR" ]]; then
+    EXTRA_CP=":$JCL_JAR"
+    info "shaded server jar has no JCL bridge; adding $JCL_JAR to adapter 1 classpath"
+  else
+    warn "shaded server jar has no JCL bridge (org.apache.commons.logging) and no bridge jar was found in ~/.m2; adapter 1 will likely fail to start (see adapter1.log)"
+  fi
+fi
+ADAPTER1_CP="$SERVER_JAR:$H2_PLUGIN_JAR$EXTRA_CP"
 
 #--- adapter 2: docker compose ---------------------------------------------------
 info "Starting adapter 2 (docker compose: $COMPOSE_FILE)"
@@ -242,8 +267,11 @@ init_done() {
 wait_for "overheid_init exited 0" 180 init_done || die "overheid_init did not finish successfully (see 'docker compose logs overheid_init')"
 ok "adapter 2 (overheid) is up and initialized"
 
-#--- adapter 1: local StartEmbedded (Launch StartEmbedded SSL) --------------------
-info "Starting adapter 1 (local StartEmbedded, -ssl -soap -health)..."
+#--- adapter 1: local StartEmbedded (ebms-core, "Launch StartEmbedded SSL Server") --
+# the core server is property-driven: -ssl/-soap/-health CLI args are no-ops, so
+# the web(REST/SOAP)/health connectors are enabled with -D api.* flags and the
+# in-process H2 with -Ddatabase.start=true (see .vscode/launch.json)
+info "Starting adapter 1 (local ebms-core server, property-driven)..."
 (
   cd "$WORK_DIR" || exit 1
   exec java \
@@ -251,14 +279,25 @@ info "Starting adapter 1 (local StartEmbedded, -ssl -soap -health)..."
     -Dlog4j.configurationFile=log4j2.xml \
     -Debms.jdbc.update=true \
     -Debms.verifyHostnames=false \
-    -cp "$ADMIN_JAR:$H2_PLUGIN_JAR" \
-    nl.clockwork.ebms.admin.StartEmbedded -ssl -soap -health \
+    -Ddatabase.start=true \
+    -Dapi.ssl.enabled=true \
+    -Dapi.ssl.keyStorePassword=my-secret-password \
+    -Dapi.health.enabled=true \
+    -cp "$ADAPTER1_CP" \
+    nl.clockwork.ebms.server.embedded.startup.StartEmbedded \
     > "$WORK_DIR/adapter1.log" 2>&1
 ) &
 ADAPTER1_PID=$!
 
+# fail fast: if the JVM crashes during startup (e.g. a missing class), the
+# health endpoint will never come up and the wait below would look like a hang
+adapter1_alive() { kill -0 "$ADAPTER1_PID" 2>/dev/null; }
 adapter1_health() { curl -fsS "$HEALTH1" >/dev/null; }
 adapter1_rest()   { curl -fk -fsS "$REST1/cpas" >/dev/null; }
+if ! wait_for "adapter 1 to keep running" 20 adapter1_alive; then
+  die "adapter 1 (the ebms-core server JVM) exited during startup; last log lines:
+$(tail -n 15 "$WORK_DIR/adapter1.log")"
+fi
 wait_for "adapter 1 health endpoint ($HEALTH1)" 240 adapter1_health || die "adapter 1 did not start (see $WORK_DIR/adapter1.log)"
 wait_for "adapter 1 REST API ($REST1)" 120 adapter1_rest || die "adapter 1 REST API not reachable (see $WORK_DIR/adapter1.log)"
 ok "adapter 1 (digipoort) is up on https://localhost:8443 + https://localhost:8888/ebms"

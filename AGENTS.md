@@ -54,8 +54,10 @@ CI/CD
 - GitHub Actions: ci.yml (PR/push build & test)
 - Release: release.yml (workflow_dispatch, input: version). Parent-driven
   release of ebms-core + ebms-admin from the tip of dev-2.20.x: bump, build
-  + test, run the two-adapter smoke test (smoke-test.sh: built jar vs the
-  published docker image; failure aborts the release before any tag/push),
+  + test, run the two-adapter smoke test (smoke-test.sh: adapter 1 = the built
+  ebms-core server jar (local `nl.clockwork.ebms.server.embedded.startup.StartEmbedded`,
+  property-driven, not the ebms-admin one) vs adapter 2 = the published docker
+  image; failure aborts the release before any tag/push),
   commit + tag + push both submodules, create GitHub releases with the built
   JARs as assets, bump both to <next patch>-SNAPSHOT, pin the submodules in
   the parent, wait for CI. Requires secret

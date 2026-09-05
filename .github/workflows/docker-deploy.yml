@@ -65,8 +65,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Init ebms-docker submodule
-        run: git submodule update --init --depth 1 ebms-docker
+      - name: Init ebms-docker + ebms-core submodules
+        # ebms-core hosts the base (bin) adapter Dockerfile
+        run: |
+          git submodule update --init --depth 1 ebms-docker
+          git submodule update --init --depth 1 ebms-core
 
       - name: Fail fast if the release does not exist yet
         # The Dockerfiles curl the JARs from the GitHub release at build
@@ -104,6 +107,8 @@ jobs:
         run: |
           set -eu
           # same images + tag scheme as ebms-docker/images/env.sh + build.sh
+          # the base (bin) adapter Dockerfile lives in the ebms-core project;
+          # pg and test stay in ebms-docker/images/
           IMAGES="ebms-adapter-bin ebms-adapter-pg ebms-adapter-test"
           for ARCH in amd64 arm64; do
             for IMAGE in $IMAGES; do
@@ -114,7 +119,12 @@ jobs:
               if [ "$IMAGE" != "ebms-adapter-bin" ]; then
                 EXTRA=(--build-context "eluinstra/ebms-adapter-bin:${VERSION}=docker-image://${REPO}ebms-adapter-bin:${VERSION}-${ARCH}")
               fi
-              echo "Building ${REPO}${IMAGE}:${VERSION}-${ARCH}"
+              if [ "$IMAGE" = "ebms-adapter-bin" ]; then
+                CONTEXT="ebms-core/docker/ebms-adapter-bin"
+              else
+                CONTEXT="ebms-docker/images/${IMAGE}"
+              fi
+              echo "Building ${REPO}${IMAGE}:${VERSION}-${ARCH} (context: ${CONTEXT})"
               docker buildx build \
                 --platform "linux/${ARCH}" \
                 --build-arg "EBMS_VERSION=${VERSION}" \
@@ -123,7 +133,7 @@ jobs:
                 -t "${REPO}${IMAGE}:${VERSION}-${ARCH}" \
                 -t "${REPO}${IMAGE}:latest-${ARCH}" \
                 --load \
-                "ebms-docker/images/${IMAGE}"
+                "${CONTEXT}"
               docker image push "${REPO}${IMAGE}:${MAJOR}-${ARCH}"
               docker image push "${REPO}${IMAGE}:${VERSION}-${ARCH}"
               docker image push "${REPO}${IMAGE}:latest-${ARCH}"
