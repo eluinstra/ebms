@@ -9,8 +9,9 @@ name: Release
 #   1. Check out ebms-core and ebms-admin at the tip of dev-2.20.x
 #   2. Bump the version to the target release version
 #   3. Build and test both (same commands as ci.yml)
-#   4. Smoke test (smoke-test.sh): adapter 1 = the just-built ebms-admin jar
-#      running locally (StartEmbedded SSL), adapter 2 = the published
+#   4. Smoke test (ebms-core/smoke-test.sh): adapter 1 = the just-built
+#      ebms-core server jar running locally (StartEmbedded SSL), adapter 2 =
+#      the published
 #      eluinstra/ebms-adapter-bin docker image; verifies bidirectional ping +
 #      message exchange (the release candidate must be able to message an
 #      already-deployed adapter). A failure aborts the release before any
@@ -149,15 +150,15 @@ jobs:
           echo "ebms-admin assets:"; ls dist/ebms-admin
 
       - name: Smoke test (two-adapter message exchange)
-        # adapter 1 = the just-built ebms-admin jar (local StartEmbedded SSL,
-        # launched like the "Launch StartEmbedded SSL" VSCode config), adapter
-        # 2 = the published docker image from ebms-admin/docker-compose.yml:
+        # adapter 1 = the just-built ebms-core server jar (local StartEmbedded,
+        # launched like the "Launch StartEmbedded SSL Server" VSCode config),
+        # adapter 2 = the published docker image from ebms-core/docker-compose.yml:
         # ping + sendMessage (both directions) + sendMessageMTOM. On failure
         # the script saves its workdir + the overheid container log to
         # SMOKE_LOG_DIR, uploaded by the next step.
         env:
           SMOKE_LOG_DIR: ${{ runner.temp }}/ebms-smoke-logs
-        run: ./smoke-test.sh
+        run: ./ebms-core/smoke-test.sh
 
       - name: Upload smoke test logs
         if: failure()
