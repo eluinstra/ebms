@@ -10,6 +10,7 @@ Repository structure (high level)
 - ebms-admin/               — SOAP/REST server and webapp
 - ebms-docker/              — docker-compose examples and images
 - ebms-perftest-setup/      — performance test setup and scripts
+- scripts/                  — repo tooling (push-submodule.sh for authenticated submodule pushes)
 - ebms-core/core/resources/ — core resources, including test resources and documentation assets
 - documentation/            — docs site and versioned docs
 
@@ -38,10 +39,18 @@ Tech stack
 
 Build & Run
 
-- Install: mvn -B install
-- Run tests: mvn -B test or mvn -B verify
-- Build a single module: mvn -pl module-path -am package
-- Parallel build: mvn -B -T 1C (used in CI)
+- Single entry point: `make help` — the Makefile wraps the common mvn commands so
+  you don't have to remember the -f/-pl/-am flags:
+    - make build     — core clean install (all core modules)
+    - make test      — core clean verify (all core tests)
+    - make admin     — install core (skipTests) then build + test ebms-admin
+    - make module M=<module-path>   — build one core module with deps (e.g. M=core)
+    - make checkstyle / make skip-tests
+- The raw mvn equivalents (what the Makefile calls):
+  - Install: mvn -B -f ebms-core/pom.xml clean install
+  - Run tests: mvn -B -f ebms-core/pom.xml clean verify
+  - Build a single module: mvn -B -f ebms-core/pom.xml -pl <module-path> -am package
+  - Parallel build: mvn -B -T 1C (used in CI)
 
 Testing
 
@@ -96,7 +105,7 @@ Common pitfalls
 - Version consistency: update ${revision} in ebms-core/pom.xml and ensure sonarlint-project.properties matches
 - Submodule `ignore = all`: `.gitmodules` sets `ignore = all` on every submodule, which makes `git status` hide gitlink drift AND makes plain `git add <path>` silently skip pointer updates. Use `git add -f <submodule>` to stage a new commit, and commit the parent pointer so CI checks out the intended SHA.
 - Submodule version alignment: CI builds only the committed submodule SHAs. After a release, each submodule's dev branch must carry its post-release `-SNAPSHOT` version bump as a real commit (not just a local working-tree edit), and the parent repo must pin that commit — otherwise CI resolves the release version against Maven Central and fails.
-- Submodule remotes need auth: submodule push URLs are plain HTTPS, so `git push` inside a submodule prompts for credentials. Push with the token, e.g. `git push https://x-access-token:${TOKEN}@github.com/eluinstra/<repo>.git <branch>`.
+- Submodule remotes need auth: submodule push URLs are plain HTTPS, so `git push` inside a submodule prompts for credentials. Use `scripts/push-submodule.sh <path-or-name> [branch]` — it reads SUBMODULE_GITHUB_TOKEN (or GITHUB_TOKEN), pushes to the branch configured in .gitmodules, and then prints the exact `git add -f <submodule>` + commit + push commands to pin the new SHA in the parent. `--dry-run` previews the (token-masked) push URL. It accepts a submodule name OR repo path (note `documentation` is the path, `ebms-admin_documentation` is the name).
 - Submodule pins must point at commits that exist on the remote: CI checks out the pinned SHAs with a shallow fetch, so pinning a local/unpushed commit breaks every CI run with `upload-pack: not our ref <sha>`. Push the submodule commit first, then pin it in the parent (happened with the `documentation` submodule in 2026-08: a license commit made on stale local history was pinned but never pushed).
 - Running the embedded server (`nl.clockwork.ebms.server.embedded.startup.StartEmbedded`) locally: (1) `Start.getProperty`/`getBooleanProperty` (SystemInterface) read ONLY `-D` system properties — the classpath `default.properties` is seen only by Spring `@Value` beans — so connector flags must be passed as vmArgs, e.g. `-Dapi.ssl.enabled=true -Dapi.ssl.keyStorePassword=... -Dapi.health.enabled=true`. (2) The `-ssl`/`-soap`/`-health` CLI args are no-ops in this module. (3) `database.start=true` is required to start the in-process H2 TCP server on 9092 (otherwise Hikari fails with "Connection refused: localhost:9092"); it is read via `@Value`, so a vmArg or an `ebms-server.properties` in the working dir both work.
 - Spring: declare `BeanPostProcessor` factory methods `static` and inject `Environment` instead of relying on `@Value` fields of the enclosing `@Configuration` class. A non-static `@Bean` returning a `BeanPostProcessor` forces early instantiation of the config class, before `@Value` injection, leaving fields as raw `${...}` placeholders (hit in `MessageEventListenerConfig.messageEventListenerFilterProcessor`, fixed 2026-08).

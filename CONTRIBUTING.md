@@ -4,11 +4,38 @@ Thanks for your interest. Short checklist for contributors:
 
 - Fork the repository and create a branch named feature/<short-desc> or fix/<short-desc>
 - Target branch: dev
-- Run local build and tests: mvn -B clean verify
+- Run local build and tests: `make test` (ebms-core) and `make admin` (ebms-admin) — see Tooling below
 - Add unit tests for new behavior under src/test/java
-- Follow existing code style and run `mvn checkstyle:check` if needed
+- Follow existing code style and run `make checkstyle` (or `mvn checkstyle:check`) if needed
 - Update CHANGELOG.md with a short note under Unreleased
 - Open a PR with a clear description, testing steps, and link to relevant docs
+
+Tooling
+
+A Makefile at the repo root wraps the common Maven commands so you don't have to
+remember the `-f` / `-pl` / `-am` flags. Start with `make help`.
+
+| Command | What it does |
+| --- | --- |
+| `make build` | ebms-core clean install (all core modules) |
+| `make test` | ebms-core clean verify (all core unit + integration tests) |
+| `make admin` | install ebms-core (skipTests) then build + test ebms-admin |
+| `make module M=<path>` | build one core module with its deps (e.g. `make module M=core`) |
+| `make checkstyle` | checkstyle across the core reactor |
+| `make skip-tests` | quick ebms-core build without tests |
+
+For authenticated submodule pushes (required because submodule remotes are plain
+HTTPS and `.gitmodules` sets `ignore = all`), use `scripts/push-submodule.sh`:
+
+```sh
+export SUBMODULE_GITHUB_TOKEN=...        # or GITHUB_TOKEN; Contents read+write
+scripts/push-submodule.sh <path-or-name> [branch]     # e.g. ebms-core, or documentation
+scripts/push-submodule.sh ebms-core --dry-run         # preview the token-masked push URL
+```
+
+It pushes to the branch configured in `.gitmodules` (or the one you pass), then
+prints the exact `git add -f <submodule>` + commit + push commands to pin the new
+SHA in the parent repo.
 
 AI-assisted changes checklist:
 
@@ -17,7 +44,10 @@ AI-assisted changes checklist:
 - Include tests for behavior changes or bug fixes
 - Mention exact validation commands and outcomes in the PR description
 
-Validation matrix by change type:
+Validation matrix by change type
+
+The raw mvn commands below are the minimum; the Makefile targets above run the
+full equivalents. There is no root `pom.xml`, so always use `mvn -f <module>/pom.xml`.
 
 | Change type | Minimum validation |
 | --- | --- |

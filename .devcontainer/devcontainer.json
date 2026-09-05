@@ -2,12 +2,15 @@
 	"name": "EbMS 2.20",
 	"image": "mcr.microsoft.com/devcontainers/base:noble",
 	"mounts": [
+		// mkdir ~/.openhands.ebms ~/.pochi.ebms
+		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.openhands.ebms/,target=/home/vscode/.openhands",
+		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.pochi.ebms/,target=/home/vscode/.pochi",
 		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh/,target=/home/vscode/.ssh,readonly"
 	],
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:4.1.0": {},
 		"ghcr.io/devcontainers/features/node:2.1.0": {},
-		"ghcr.io/devcontainers/features/java:1.8.2": {
+		"ghcr.io/devcontainers/features/java:1.8.3": {
 			"installMaven": true,
 			"version": "17",
 			"jdkDistro": "tem",
@@ -82,7 +85,8 @@
 				"sonarsource.sonarlint-vscode",
 				"redhat.fabric8-analytics",
 				"ms-ossdata.vscode-postgresql",
-				"github.vscode-github-actions"
+				"github.vscode-github-actions",
+				"tabbyml.pochi"
 			]
 		}
 	}
