@@ -90,7 +90,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -162,7 +162,7 @@ jobs:
 
       - name: Upload smoke test logs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ebms-smoke-logs
           path: ${{ runner.temp }}/ebms-smoke-logs

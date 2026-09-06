@@ -22,8 +22,9 @@
 #
 #   <submodule-path>  path in the parent repo (e.g. ebms-core, documentation)
 #                     or the submodule name from .gitmodules.
-#   [branch]          branch to push (default: the branch configured in
-#                     .gitmodules for that submodule).
+#   [branch]          branch to push (default: the branch currently checked
+#                     out in the submodule; falls back to the branch configured
+#                     in .gitmodules when the submodule is in a detached HEAD).
 #
 # Token
 # -----
@@ -116,9 +117,18 @@ if [ -z "$SUBURL" ]; then
   SUBURL="$(git -C "$SUBDIR" remote get-url origin)"
 fi
 
-BRANCH="${SUBBRANCH:-}"
-if [ -z "$BRANCH" ]; then
-  BRANCH="$(git -C "$SUBDIR" rev-parse --abbrev-ref HEAD)"
+# Branch priority: explicit argument > current HEAD > .gitmodules default.
+# Defaulting to the checked-out branch is what users most often intend; the
+# .gitmodules tracking branch is used only when the submodule is detached.
+if [ -n "$ARG2" ]; then
+  BRANCH="$ARG2"
+else
+  HEAD_BRANCH="$(git -C "$SUBDIR" rev-parse --abbrev-ref HEAD)"
+  if [ -n "$HEAD_BRANCH" ] && [ "$HEAD_BRANCH" != "HEAD" ]; then
+    BRANCH="$HEAD_BRANCH"
+  else
+    BRANCH="$SUBBRANCH"
+  fi
 fi
 
 # --- Token -------------------------------------------------------------------
