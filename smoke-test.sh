@@ -214,7 +214,13 @@ if [[ -z "$H2_PLUGIN_JAR" ]]; then
 fi
 if [[ $REBUILD -eq 1 || -z "$ADMIN_JAR" || -z "$H2_PLUGIN_JAR" ]]; then
   info "Building ebms-admin jar (this can take a few minutes)..."
-  [[ -z "$H2_PLUGIN_JAR" ]] && mvn -B -q -f "$CORE_DIR/plugin/db/h2/pom.xml" install -DskipTests -Dspotless.apply.skip=true -Dspotless.check.skip=true -Dlicense.skip=true -Dlicense.skipAddThirdParty=true || die "H2 plugin build failed"
+  # The shaded admin jar resolves ebms-core/ebms-common from the local repo (not
+  # the reactor), so install the reactor core modules first to pick up local core
+  # changes; then the H2 plugin; then the admin jar.
+  mvn -B -q -f "$CORE_DIR/pom.xml" -pl core -am install -DskipTests -Dspotless.apply.skip=true -Dspotless.check.skip=true -Dlicense.skip=true -Dlicense.skipAddThirdParty=true || die "ebms-core build failed"
+  if [[ -z "$H2_PLUGIN_JAR" ]]; then
+    mvn -B -q -f "$CORE_DIR/plugin/db/h2/pom.xml" install -DskipTests -Dspotless.apply.skip=true -Dspotless.check.skip=true -Dlicense.skip=true -Dlicense.skipAddThirdParty=true || die "H2 plugin build failed"
+  fi
   mvn -B -q -f "$ADMIN_DIR/pom.xml" package -DskipTests -Dspotless.apply.skip=true -Dspotless.check.skip=true -Dlicense.skip=true -Dlicense.skipAddThirdParty=true || die "ebms-admin build failed"
   ADMIN_JAR=$(ls "$ADMIN_DIR"/target/ebms-admin-*.jar | grep -v original- | grep -v sources | grep -v javadoc | head -1)
   H2_PLUGIN_JAR=$(ls "$CORE_DIR"/plugin/db/h2/target/ebms-h2-db-plugin-*.jar | grep -v original- | grep -v sources | grep -v javadoc | head -1)
