@@ -16,7 +16,7 @@
 [submodule "ebms-docker"]
 	path = ebms-docker
 	url = https://github.com/eluinstra/ebms-docker.git
-	branch = 2.20.x
+	branch = dev-2.20.x
 	ignore = all
 [submodule "ebms-perftest-setup"]
 	path = ebms-perftest-setup

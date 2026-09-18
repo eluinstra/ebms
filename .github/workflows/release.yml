@@ -218,13 +218,19 @@ jobs:
               exit 1
             fi
             for f in "$dist"/*.jar; do
-              curl -sf -X POST \
+              # retry a few times in case the uploads endpoint is flaky, and
+              # fail with an explicit message (previously a 4xx surfaced only
+              # as a bare "exit code 22" under bash -e)
+              if ! curl -fs --retry 3 --retry-delay 5 --retry-all-errors -X POST \
                 -H "Authorization: Bearer ${TOKEN}" \
                 -H "Accept: application/vnd.github+json" \
                 -H "Content-Type: application/java-archive" \
                 --data-binary @"$f" \
                 "https://uploads.github.com/repos/${repo}/releases/${release_id}/assets?name=$(basename "$f")" \
-                > /dev/null
+                > /dev/null; then
+                echo "::error::asset upload failed after retries: $(basename "$f") -> ${repo} release ${release_id}"
+                exit 1
+              fi
             done
             echo "${repo}: created release ${tag} (id ${release_id}) with $(ls "$dist" | wc -l) assets"
           }
@@ -270,7 +276,7 @@ jobs:
           else
             echo "no submodule pin changes"
           fi
-          git push origin HEAD:dev
+          git push origin HEAD:dev-2.20.x
 
       - name: Wait for CI to go green
         env:
@@ -282,7 +288,7 @@ jobs:
           for i in $(seq 1 60); do
             sleep 30
             RUN=$(curl -sf -H "Authorization: Bearer ${TOKEN}" \
-              "https://api.github.com/repos/${REPO}/actions/workflows/ci.yml/runs?branch=dev&per_page=1" \
+              "https://api.github.com/repos/${REPO}/actions/workflows/ci.yml/runs?branch=dev-2.20.x&per_page=1" \
               | python3 -c "import json,sys; print(json.load(sys.stdin)['workflow_runs'][0]['id'])")
             STATUS=$(curl -sf -H "Authorization: Bearer ${TOKEN}" \
               "https://api.github.com/repos/${REPO}/actions/runs/${RUN}" \

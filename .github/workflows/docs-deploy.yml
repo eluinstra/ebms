@@ -17,7 +17,7 @@ name: Deploy documentation
 
 on:
   push:
-    branches: [ dev ]
+    branches: [ dev-2.20.x ]
   workflow_dispatch:
 
 permissions:
@@ -44,7 +44,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: yarn  # key from documentation/yarn.lock (matched by default glob)
+          cache: yarn
+          # yarn.lock lives in the documentation submodule, not at the repo
+          # root, so the default cache-dependency glob never matches and
+          # setup-node fails with "Dependencies lock file is not found".
+          cache-dependency-path: documentation/yarn.lock
 
       - name: Install dependencies
         working-directory: documentation
