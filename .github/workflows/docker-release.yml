@@ -1,0 +1,227 @@
+name: Release ebms-docker
+
+# Parent-driven release for ebms-docker, mirroring release.yml (the
+# ebms-core + ebms-admin release) and adapted to what a docker release
+# means for this repo:
+#
+# ebms-docker contains no code of its own - the Dockerfiles download the
+# release JARs from the eluinstra/ebms-admin GitHub release at build time.
+# "Releasing" ebms-docker therefore means: pin the repo to the new
+# version, prove the images build and actually message against each other,
+# and cut the tag. There is no -SNAPSHOT bump, so no "prepare for next
+# development iteration" step.
+#
+# Prerequisite: run the Release workflow first (the JARs must exist in
+# the eluinstra/ebms-admin release); bump.sh and the preflight check
+# below fail fast otherwise. Publishing the multi-arch images to Docker
+# Hub is a separate step: run "Deploy Docker images" after this workflow
+# (or in the same session; it only needs the JAR release to exist).
+#
+# Trigger: Actions tab -> Release ebms-docker -> Run workflow (branch: dev-2.20.x),
+# enter the target version, e.g. 2.20.10
+#
+# What it does (in order):
+#   1. Check out ebms-docker at the tip of the dev-2.20.x branch (release happens
+#      from the remote tip, same as release.yml)
+#   2. Bump the version with ./bump.sh (images/env.sh + examples/*/.env);
+#      bump.sh verifies the eluinstra/ebms-admin GitHub release exists
+#   3. Smoke test (smoke-test.sh): builds the three images for the host
+#      architecture and runs the examples/demo two-adapter stack
+#      (digipoort + overheid); verifies ping + message exchange in both
+#      directions incl. MTOM. A failure aborts the release before any
+#      commit, tag, push or GitHub release is created
+#   4. Commit "updated to ebms-admin-<v>" and push dev-2.20.x (pushed before the
+#      tag so a crashed run can be re-run safely)
+#   5. Tag v<version> (same scheme as the existing v2.20.x tags) and push
+#   6. Create a GitHub release on the new tag with an auto-generated
+#      changelog (commit subjects since the previous release tag)
+#
+# Re-run safety: safe to re-run on a failed run, unless the tag was
+# already pushed - that is refused explicitly (like release.yml it is
+# NOT safe to re-run once the tag exists; the GitHub release for an
+# existing tag is created or reused, never duplicated).
+#
+# Required repository secret:
+#   SUBMODULE_GITHUB_TOKEN - the same PAT used by release.yml. It needs
+#     Contents: Read and write on eluinstra/ebms-docker (push the dev-2.20.x
+#     branch, push the tag, create the GitHub release). Nothing else.
+#
+# Job token permissions (declared in `permissions:` below, also minimal):
+#   contents: write - push the submodule pin to dev-2.20.x
+#
+# Optional approval gate: create an environment named "release"
+# (Settings -> Environments) with required reviewers, then uncomment the
+# `environment` line below.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'EbMS release version to pin the images to, e.g. 2.20.10'
+        required: true
+        type: string
+
+permissions:
+  contents: write  # push the submodule pin to dev-2.20.x
+
+concurrency:
+  group: docker-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45  # image builds + smoke test + up to 20 min CI wait
+    # environment: release
+    steps:
+      - name: Validate version input
+        id: check
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must be MAJOR.MINOR.PATCH, got: $VERSION"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
+          submodules: false
+          fetch-depth: 0
+
+      - name: Init ebms-docker submodule
+        env:
+          TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
+        run: |
+          git submodule update --init --depth 1 ebms-docker
+          # the checkout above used the parent pin (shallow); fetch the
+          # full history, tags and the dev-2.20.x branch so the workflow can
+          # release from the remote branch tip
+          git -C ebms-docker fetch --quiet --unshallow --tags origin dev-2.20.x
+          git -C ebms-docker checkout --quiet dev-2.20.x
+
+      - name: Prepare submodule
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          # --global: commits in the submodule have their own config and
+          # would fail with "Author identity unknown"
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          # release from the branch tip; refuse to run on a dirty tree
+          if [ -n "$(git -C ebms-docker status --porcelain)" ]; then
+            echo "::error::ebms-docker has uncommitted changes; commit them first"
+            exit 1
+          fi
+          if ! git -C ebms-docker diff --quiet origin/dev-2.20.x HEAD; then
+            echo "::error::ebms-docker is not at the tip of origin/dev-2.20.x"
+            exit 1
+          fi
+          # refusing an already-cut release tag makes a re-run fail loudly
+          # instead of re-committing on top of the tagged version
+          if git -C ebms-docker tag --list "v*" | grep -Fxq "v${VERSION}"; then
+            echo "::error::tag v${VERSION} already exists on eluinstra/ebms-docker; release already cut"
+            exit 1
+          fi
+
+      - name: Bump version
+        # bump.sh updates images/env.sh + examples/*/.env and verifies
+        # that the eluinstra/ebms-admin GitHub release with the JARs
+        # exists (the Dockerfiles download them at build time)
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          cd ebms-docker
+          if ./bump.sh "$VERSION"; then
+            # "nothing to do" means the tree is already at the target
+            # version; only acceptable on a re-run, and the release
+            # commit + tag must still happen below
+            grep "EBMS_VERSION=${VERSION}" images/env.sh
+          else
+            echo "::error::bump to ${VERSION} failed (missing eluinstra/ebms-admin release? run the Release workflow first)"
+            exit 1
+          fi
+
+      - name: Smoke test (two-adapter message exchange)
+        # builds the three images for the host architecture and runs the
+        # examples/demo stack (digipoort + overheid): ping + sendMessage
+        # (REST, both directions) + sendMessageMTOM, each message picked
+        # up and verified on the receiving adapter. On failure the script
+        # saves the adapter container logs to SMOKE_LOG_DIR, uploaded by
+        # the next step.
+        env:
+          SMOKE_LOG_DIR: ${{ runner.temp }}/ebms-docker-smoke-logs
+        run: ./ebms-docker/smoke-test.sh
+
+      - name: Upload smoke test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ebms-docker-smoke-logs
+          path: ${{ runner.temp }}/ebms-docker-smoke-logs
+          if-no-files-found: ignore
+
+      - name: Commit and push release
+        # pushed before the tag: if the run crashes after this step, a
+        # re-run finds the tree already at the target version and only
+        # needs to tag + create the release
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
+        run: |
+          cd ebms-docker
+          git add images/env.sh examples/demo/.env examples/demo-pg/.env examples/demo-hs/.env
+          if ! git diff --cached --quiet; then
+            git commit -m "updated to ebms-admin-${VERSION}"
+          else
+            echo "version files already committed at ${VERSION} (re-run)"
+          fi
+          git push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-docker.git" dev-2.20.x
+
+      - name: Tag and push tag
+        # the v<version> scheme matches the existing tags (v2.20.6, ...)
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
+        run: |
+          cd ebms-docker
+          git tag "v${VERSION}"
+          # the push is idempotent; the tag guard in "Prepare submodule"
+          # already refused a re-run for an existing tag
+          git push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-docker.git" "v${VERSION}"
+
+      - name: Create GitHub release
+        # runs after the tag is pushed: posting a release for a tag that
+        # does not exist yet would make GitHub create a lightweight tag
+        # at the default branch, i.e. the wrong commit
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
+        run: |
+          # changelog body: commit subjects since the previous release tag
+          prev_tag=$(git -C ebms-docker tag --list "v*" | sort -V | head -n -1 | tail -n 1)
+          body=""
+          if [ -n "$prev_tag" ]; then
+            body=$(git -C ebms-docker log --no-merges --pretty='- %s' "${prev_tag}..HEAD" | grep -v '^- updated to ebms-admin-' || true)
+          fi
+          [ -n "$body" ] || body="- (no changelog available)"
+          body=$(printf '%s\n\nDocker images for this version are published on Docker Hub by the\n"Deploy Docker images" workflow: eluinstra/ebms-adapter-bin,\neluinstra/ebms-adapter-pg, eluinstra/ebms-adapter-test (tag %s).' \
+            "$body" "${VERSION}")
+          payload=$(jq -n --arg tag "v${VERSION}" --arg body "$body" \
+            '{tag_name: $tag, body: $body, draft: false, prerelease: false}')
+          release_id=$(curl -sf -X POST \
+              -H "Authorization: Bearer ${TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -d "$payload" \
+              "https://api.github.com/repos/eluinstra/ebms-docker/releases" | jq .id) \
+            || release_id=$(curl -sf \
+              -H "Authorization: Bearer ${TOKEN}" \
+              "https://api.github.com/repos/eluinstra/ebms-docker/releases/tags/v${VERSION}" | jq .id)
+          if [ -z "$release_id" ]; then
+            echo "::error::could not create or fetch release v${VERSION} on eluinstra/ebms-docker"
+            exit 1
+          fi
+          echo "eluinstra/ebms-docker: created release v${VERSION} (id ${release_id})"
