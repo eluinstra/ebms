@@ -132,7 +132,8 @@ else
 fi
 
 # --- Token -------------------------------------------------------------------
-TOKEN="${GITHUB_TOKEN:-}"
+# Check SUBMODULE_GITHUB_TOKEN first, then fall back to GITHUB_TOKEN (matches the header).
+TOKEN="${SUBMODULE_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
 if [ "$DRY_RUN" -eq 0 ] && [ -z "$TOKEN" ]; then
   echo "error: no token found. Export SUBMODULE_GITHUB_TOKEN (or GITHUB_TOKEN) first." >&2
   exit 1
