@@ -2,11 +2,11 @@ Copilot instructions — EbMS (Java/Maven)
 
 Purpose
 
-These instructions guide AI assistants and contributors interacting with this repository. Focus on Maven multi-module structure, Java 17 conventions, and the maintenance matrix below.
+These instructions guide AI assistants and contributors interacting with this repository. Focus on Maven multi-module structure, Java 21 conventions, and the maintenance matrix below.
 
 Language & build
 
-- Primary language: Java (JDK 17)
+- Primary language: Java (JDK 21)
 - Build tool: Maven (multi-module). Use top-level parent at ebms-core/pom.xml.
 - Common commands:
   - Install: mvn -B install

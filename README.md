@@ -1,11 +1,11 @@
 # EbMS
 
-EbMS is a Java 17 multi-module Maven project with core messaging modules,
+EbMS is a Java 21 multi-module Maven project with core messaging modules,
 an admin application, Docker examples, and performance test scripts.
 
 ## Prerequisites
 
-- Java 17
+- Java 21
 - Maven 3.9+
 - Docker (optional, for examples and local SonarQube)
 - Node.js (optional, for documentation site work)

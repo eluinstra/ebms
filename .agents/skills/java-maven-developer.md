@@ -1,6 +1,6 @@
 ---
 name: java-maven-developer
-description: Java 17 Maven multi-module development for EbMS
+description: Java 21 Maven multi-module development for EbMS
 ---
 
 ## Java & Maven Development for EbMS
@@ -20,7 +20,7 @@ You are an expert Java developer working on the EbMS project.
 - Parallel: `mvn -B -T 1C` (used in CI)
 
 ### Coding Conventions
-- Java 17, Lombok annotations
+- Java 21, Lombok annotations
 - Package-private visibility by default; explicit `public` when needed
 - Use `@Slf4j` for logging (SLF4J + Log4j2)
 - Prefer constructor injection over `@Autowired` field injection

@@ -1,8 +1,8 @@
 Project Overview
 
-EbMS (nl.clockwork.ebms) is a Java 17 Maven multi-module implementation of the ebXML Messaging Specification (EbMS 2.0). The repository is a multi-module Maven build (ebms-core with plugins for multiple databases and caches) plus webapp and Docker examples.
+EbMS (nl.clockwork.ebms) is a Java 21 Maven multi-module implementation of the ebXML Messaging Specification (EbMS 2.0). The repository is a multi-module Maven build (ebms-core with plugins for multiple databases and caches) plus webapp and Docker examples.
 
-Current version: 2.20.9-SNAPSHOT (revision property in ebms-core/pom.xml)
+Current version: 2.21.0-SNAPSHOT (revision property in ebms-core/pom.xml)
 
 Repository structure (high level)
 
@@ -29,7 +29,7 @@ Documentation
 
 Tech stack
 
-- Java 17 (property: jdk.version = 17 in ebms-core/pom.xml)
+- Java 21 (property: jdk.version = 21 in ebms-core/pom.xml)
 - Lombok
 - Spring Framework
 - Build: Maven multi-module (flattened-pom for version management via ${revision})
@@ -87,7 +87,7 @@ Key patterns & conventions
 
 - Multi-module Maven parent at ebms-core/pom.xml. Changes to the core module commonly require updating plugins under plugin/* and modules that depend on core.
 - Database plugins live in ebms-core/plugin/db/* — changing persistence schema will require updating migrations (if used) and tests in core/resources/test.
-- Version management uses ${revision} property (currently 2.20.9-SNAPSHOT)
+- Version management uses ${revision} property (currently 2.21.0-SNAPSHOT)
 
 Adding a new module
 
