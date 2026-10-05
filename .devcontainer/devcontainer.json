@@ -2,13 +2,13 @@
 	"name": "EbMS 2.21",
 	"image": "mcr.microsoft.com/devcontainers/base:noble",
 	"mounts": [
-		// mkdir ~/.openhands.ebms ~/.pochi.ebms
-		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.openhands.ebms/,target=/home/vscode/.openhands",
-		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.pochi.ebms/,target=/home/vscode/.pochi",
-		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh/,target=/home/vscode/.ssh,readonly"
+		// mkdir -p ~/.m2 ~/.openhands.gb ~/.pochi.gb
+		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.m2/,target=/home/vscode/.m2",
+		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.openhands.gb/,target=/home/vscode/.openhands",
+		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.pochi.gb/,target=/home/vscode/.pochi"
 	],
 	"features": {
-		"ghcr.io/devcontainers/features/docker-in-docker:4.1.1": {},
+		"ghcr.io/devcontainers/features/docker-in-docker:4.1.2": {},
 		"ghcr.io/devcontainers/features/node:2.1.0": {},
 		"ghcr.io/devcontainers/features/java:1.8.3": {
 			"installMaven": true,
@@ -24,21 +24,20 @@
 				"tmux"
 			]
 		}
-		// "ghcr.io/coder/devcontainer-features/code-server:2": {
-		// 	"port": "7001",
-		// 	"host": "0.0.0.0",
-		// 	"auth": "none",
-		// 	"disableTelemetry": true,
-		// 	"extensions": "tabbyml.pochi,ms-azuretools.vscode-docker,donjayamanne.githistory,mhutchie.git-graph,humao.rest-client,qcz.text-power-tools,jebbs.plantuml,tomoyukim.vscode-mermaid-editor,dbaeumer.vscode-eslint,vscjava.vscode-java-pack,sonarsource.sonarlint-vscode,redhat.fabric8-analytics,microsoft.cursor-pgsql,github.vscode-github-actions"
-		// }
 	},
 	"containerUser": "vscode",
 	"remoteUser": "vscode",
-	"postCreateCommand": "curl -LsSf https://astral.sh/uv/install.sh | sh && npm install -g @openhands/agent-canvas",
-	"postStartCommand": "tmux has-session -t canvas 2>/dev/null || (tmux new-session -d -s canvas && tmux send-keys -t canvas 'agent-canvas --port 7000' Enter)",
+	"postCreateCommand": {
+		"install-code-server": "curl -fsSL https://code-server.dev/install.sh | sh && code-server --install-extension tabbyml.pochi --install-extension ms-azuretools.vscode-docker --install-extension donjayamanne.githistory --install-extension mhutchie.git-graph --install-extension humao.rest-client --install-extension qcz.text-power-tools --install-extension jebbs.plantuml --install-extension tomoyukim.vscode-mermaid-editor --install-extension dbaeumer.vscode-eslint --install-extension vscjava.vscode-java-pack --install-extension sonarsource.sonarlint-vscode --install-extension redhat.fabric8-analytics --install-extension microsoft.cursor-pgsql",
+		"install-openhands": "curl -LsSf https://astral.sh/uv/install.sh | sh && npm install -g @openhands/agent-canvas"
+	},
+	"postStartCommand": {
+		"start-code-server": "tmux has-session -t code 2>/dev/null || (tmux new-session -d -s code && tmux send-keys -t code 'code-server --auth none --disable-telemetry --bind-addr 0.0.0.0:7001 /workspaces/gb' Enter)",
+		"start-openhands": "tmux has-session -t canvas 2>/dev/null || (tmux new-session -d -s canvas && tmux send-keys -t canvas 'agent-canvas --port 7000' Enter)"
+	},
 	"appPort": [
-		"7000:7000"
-		// "7001:7001"
+		"7000:7000",
+		"7001:7001"
 	],
 	"forwardPorts": [
 		5432,
