@@ -1,7 +1,8 @@
 # EbMS
 
 EbMS is a Java 21 multi-module Maven project with core messaging modules,
-an admin application, Docker examples, and performance test scripts.
+an embedded SOAP/REST server (ebms-server), Docker examples, and performance
+test scripts.
 
 ## Prerequisites
 
@@ -12,8 +13,11 @@ an admin application, Docker examples, and performance test scripts.
 
 ## Repository layout
 
-- ebms-core/ - Maven parent for common, core and plugin modules
-- ebms-admin/ - SOAP/REST server and web application
+- ebms-core/ - Maven parent for common, core, server and plugin modules;
+  ebms-core/server builds the ebms-server embedded SOAP/REST server (the
+  successor of the former ebms-admin project)
+- ebms-admin/ - retained legacy admin console, no longer built, tested or
+  released by this repo's pipelines
 - ebms-docker/ - Docker and docker-compose based examples
 - ebms-perftest-setup/ - scripts and assets for performance testing
 - documentation/ - versioned project documentation site
@@ -32,10 +36,10 @@ Run all core tests:
 mvn -f ebms-core/pom.xml -B verify
 ```
 
-Build admin module (after core install):
+Build and test the embedded server module (ebms-server, with its deps):
 
 ```sh
-mvn -f ebms-admin/pom.xml -B clean verify
+mvn -f ebms-core/pom.xml -B -pl server -am clean verify
 ```
 
 ## Common commands
@@ -67,5 +71,7 @@ mvn -f ebms-core/pom.xml -B -DskipTests=true package
 
 - This repository uses a multi-module layout. Most work should target module
   pom files directly with -f to avoid confusion.
-- ebms-admin depends on locally built artifacts from ebms-core. Install
-  ebms-core first when building ebms-admin in a fresh environment.
+- The embedded SOAP/REST server (ebms-core/server, artifact ebms-server) is
+  part of the ebms-core reactor, so one build covers it together with common,
+  core and the plugins. The retained ebms-admin/ checkout is legacy and is no
+  longer built, tested or released by the CI/release pipelines.

@@ -9,12 +9,12 @@ You are reviewing code changes for the EbMS project.
 
 ### Review Principles
 1. **Scope**: Verify changes are limited to the stated purpose
-2. **Impact**: Check downstream effects (core changes affect admin and plugins)
+2. **Impact**: Check downstream effects (core changes affect server and plugins)
 3. **Tests**: Ensure behavior changes include tests
 4. **Style**: Follow existing patterns (Lombok, SLF4J, constructor injection)
 
 ### Critical Checks
-- [ ] API changes in `ebms-core/core` have updated callers in `ebms-admin`
+- [ ] API changes in `ebms-core/core` have updated callers in `ebms-core/server`
 - [ ] Database changes update the correct plugin modules
 - [ ] No hardcoded credentials or secrets
 - [ ] Version/revision property unchanged (unless explicitly requested)
@@ -42,5 +42,5 @@ You are reviewing code changes for the EbMS project.
 ### Validation Commands
 Ask the author to confirm these passed:
 - `mvn -f ebms-core/pom.xml -B verify` (core changes)
-- `mvn -f ebms-admin/pom.xml -B verify` (admin changes)
+- `mvn -f ebms-core/pom.xml -B -pl server -am verify` (ebms-server changes)
 - `mvn checkstyle:check` (style compliance)

@@ -8,7 +8,7 @@ under Apache License, Version 2.0
 Components included in this distribution:
 - ebms-core: Java EbMS Adapter
   Copyright 2011 - 2026 Clockwork
-- ebms-admin: EbMS Admin Console
+- ebms-server: EbMS Embedded Server
   Copyright 2013 - 2026 Clockwork
 
 This product includes the following schemas and specifications

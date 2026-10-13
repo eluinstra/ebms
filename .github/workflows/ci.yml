@@ -31,13 +31,12 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
-      # Build AND test the core reactor (common, core, server, plugins), then
-      # install it locally so ebms-admin can resolve it. `install` runs the full
-      # test phase, so core now gets CI test coverage (previously -DskipTests).
-      # Messaging ITs (JMS, Kafka) and URL-mapping ITs need Docker, which is
-      # available on GitHub-hosted runners.
+      # Build AND test the whole core reactor (common, core, server, plugins)
+      # and install it locally. `install` runs the full test phase, so the
+      # reactor gets CI test coverage (previously -DskipTests). Messaging ITs
+      # (JMS, Kafka) and URL-mapping ITs need Docker, which is available on
+      # GitHub-hosted runners. The ebms-server shaded jar (the embedded
+      # SOAP/REST server, formerly the separate ebms-admin project) is built
+      # and tested as part of this reactor.
       - name: Build, test and install ebms-core
         run: mvn -B -T 1C -f ebms-core/pom.xml clean install -Ddependency-check.skip=true
-      # ebms-admin depends on the locally built core artifacts installed above.
-      - name: Build and test ebms-admin
-        run: mvn -B -T 1C -f ebms-admin/pom.xml clean verify -Ddependency-check.skip=true

@@ -6,8 +6,8 @@ Current version: 2.21.0-SNAPSHOT (revision property in ebms-core/pom.xml)
 
 Repository structure (high level)
 
-- ebms-core/                — Maven parent for EbMS core modules (common, core, plugins)
-- ebms-admin/               — SOAP/REST server and webapp
+- ebms-core/                — Maven parent for EbMS core modules (common, core, server, plugins)
+- ebms-admin/               — retained legacy admin console (submodule kept, but no longer built/tested/released by the pipelines)
 - ebms-docker/              — docker-compose examples and images
 - ebms-perftest-setup/      — performance test setup and scripts
 - scripts/                  — repo tooling (push-submodule.sh for authenticated submodule pushes)
@@ -43,7 +43,7 @@ Build & Run
   you don't have to remember the -f/-pl/-am flags:
     - make build     — core clean install (all core modules)
     - make test      — core clean verify (all core tests)
-    - make admin     — install core (skipTests) then build + test ebms-admin
+    - make server    — build + test the ebms-server module (embedded SOAP/REST server) with deps
     - make module M=<module-path>   — build one core module with deps (e.g. M=core)
     - make checkstyle / make skip-tests
 - The raw mvn equivalents (what the Makefile calls):
@@ -63,16 +63,19 @@ CI/CD
 - Default branch: dev
 - GitHub Actions: ci.yml (PR/push build & test)
 - Release: release.yml (workflow_dispatch, input: version). Parent-driven
-  release of ebms-core + ebms-admin from the tip of dev-2.20.x: bump, build
+  release of ebms-core (including the ebms-server module) from the tip of dev-2.20.x: bump, build
   + test, run the two-adapter smoke test (ebms-core/smoke-test.sh: adapter 1 = the built
   ebms-core server jar (local `nl.clockwork.ebms.server.embedded.startup.StartEmbedded`,
-  property-driven, not the ebms-admin one) vs adapter 2 = the published docker
+  property-driven) vs adapter 2 = the published docker
   image; failure aborts the release before any tag/push),
-  commit + tag + push both submodules, create GitHub releases with the built
-  JARs as assets, bump both to <next patch>-SNAPSHOT, pin the submodules in
+  commit + tag + push the submodule, create a GitHub release with the built
+  JARs as assets (core jar, ebms-server fat jar, all plugins), bump to
+  <next patch>-SNAPSHOT, pin the submodules in
   the parent, wait for CI. Requires secret
-  SUBMODULE_GITHUB_TOKEN (minimal: Contents read+write on both submodule
-  repos; the job token declares only contents:write + actions:read). See
+  SUBMODULE_GITHUB_TOKEN (minimal: Contents read+write on the ebms-core
+  repo; the same PAT also needs Contents read+write on ebms-admin because
+  docs-deploy.yml pushes the GitHub Pages site there; the job token declares
+  only contents:write + actions:read). See
   CONTRIBUTING.md ("Releasing a version") for prerequisites and recovery.
 - Dependabot: weekly updates for maven, npm (documentation), and github-actions
 - Static analysis: SonarQube integration configured

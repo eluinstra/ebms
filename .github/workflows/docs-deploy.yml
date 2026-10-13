@@ -12,8 +12,9 @@ name: Deploy documentation
 #
 # `yarn deploy` authenticates the push via the GIT_USER/GIT_PASS env vars
 # (not via the checkout token), so it needs a token with Contents write on
-# eluinstra/ebms-admin: SUBMODULE_GITHUB_TOKEN, which release.yml already
-# requires for exactly that repo. No extra secrets are needed.
+# eluinstra/ebms-admin: SUBMODULE_GITHUB_TOKEN, the same secret release.yml
+# uses (its PAT must therefore also keep Contents write on eluinstra/ebms-admin
+# for the docs site, which is hosted in that repo). No extra secrets are needed.
 
 on:
   push:

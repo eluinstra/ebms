@@ -9,8 +9,9 @@ You are an expert Java developer working on the EbMS project.
 
 ### Project Structure
 - Parent POM: `ebms-core/pom.xml` (version managed via `${revision}` property)
-- Modules: `common`, `core`, plus plugins under `plugin/`
-- Admin module: `ebms-admin/` (depends on ebms-core)
+- Modules: `common`, `core`, `server`, plus plugins under `plugin/`
+- Server module: `ebms-core/server` (artifact `ebms-server`, shaded jar; the
+  successor of the former `ebms-admin/` project)
 - Current version: `2.20.9-SNAPSHOT`
 
 ### Build Commands
@@ -34,7 +35,7 @@ Each DB plugin (`plugin/db/<driver>`) follows the same structure:
 - Migrations in `src/main/resources/db/migration/`
 
 ### When Making Changes
-1. Check which modules are affected (core → admin, plugin → core)
+1. Check which modules are affected (core → server, plugin → core)
 2. Run the validation matrix from CONTRIBUTING.md
 3. Update test resources under `ebms-core/core/resources/test/` when changing SQL or schema
 4. Never change `${revision}` without explicit user approval

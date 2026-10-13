@@ -20,14 +20,14 @@ Testing
 
 Review patterns & mined guidance
 
-- When reviewers request changes to APIs in core/, ensure callers in admin/ and plugin/* are updated and tests adjusted.
+- When reviewers request changes to APIs in core/, ensure callers in server/ and plugin/* are updated and tests adjusted.
 - When changing DB schema or SQL, update plugin/db/*, test resources (ebms-core/core/resources/test/ebms.yml), and document migration steps.
 
 Maintenance matrix (high-value paths)
 
-- Changing ebms-core/core -> update: ebms-admin webapp, ebms-core/plugin/*, documentation/docs/ebms-core
+- Changing ebms-core/core -> update: ebms-core/server (ebms-server), ebms-core/plugin/*, documentation/docs/ebms-core
 - Changing ebms-core/plugin/db/* -> update: migrations, test resources at ebms-core/core/resources/test
-- Changing ebms-admin webapp -> update: static assets under ebms-admin/src/main/webapp and documentation
+- Changing ebms-server (ebms-core/server) -> update: ebms-docker/images/ Dockerfiles and smoke test where startup/config is involved
 
 What AI agents can do autonomously
 

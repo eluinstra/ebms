@@ -1,14 +1,15 @@
 name: Release
 
-# Parent-driven release for ebms-core + ebms-admin, run together.
+# Parent-driven release of ebms-core, which includes the ebms-server embedded
+# server module (the successor of the former ebms-admin project).
 #
 # Trigger: Actions tab -> Release -> Run workflow (branch: dev), enter the
 # target version, e.g. 2.20.9
 #
 # What it does (in order):
-#   1. Check out ebms-core and ebms-admin at the tip of dev-2.20.x
+#   1. Check out ebms-core at the tip of dev-2.20.x
 #   2. Bump the version to the target release version
-#   3. Build and test both (same commands as ci.yml)
+#   3. Build and test the reactor (same command as ci.yml)
 #   4. Smoke test (ebms-core/smoke-test.sh): adapter 1 = the just-built
 #      ebms-core server jar running locally (StartEmbedded SSL), adapter 2 =
 #      the published
@@ -16,28 +17,30 @@ name: Release
 #      message exchange (the release candidate must be able to message an
 #      already-deployed adapter). A failure aborts the release before any
 #      tag, push or GitHub release is created
-#   5. Commit + tag + push both submodules (ebms-core-<v>, ebms-admin-<v>)
-#   6. Create a GitHub release per submodule on the new tag, with the built
-#      JARs attached as assets
-#   7. Bump both to <next patch>-SNAPSHOT ("prepare for next development
+#   5. Commit + tag + push the submodule (ebms-core-<v>)
+#   6. Create a GitHub release on the new tag, with the built JARs attached
+#      as assets (core jar, ebms-server shaded jar + all db/cache plugins)
+#   7. Bump to <next patch>-SNAPSHOT ("prepare for next development
 #      iteration"), commit + push
 #   8. Update all submodules to their branch tips and pin them in the parent
 #      repo (the pin commit captures the post-release state of every module:
-#      core/admin at their <next patch>-SNAPSHOT commits), push to dev
+#      ebms-core at its <next patch>-SNAPSHOT commit), push to dev
 #   9. Wait for the ci.yml run triggered by the pin to finish green
 #
 # Nothing is published to Maven Central or GitHub Packages; the built JARs
-# are attached to the GitHub releases only.
+# are attached to the GitHub release only.
 #
 # Required repository secret:
 #   SUBMODULE_GITHUB_TOKEN - a PAT (or GitHub App token). Minimal
-#     permissions: Contents: Read and write on eluinstra/ebms-core and
-#     eluinstra/ebms-admin (push the dev-2.20.x branch, push the tags,
-#     create the GitHub releases, upload the JAR assets). Nothing else is
-#     needed: no Actions/Workflows/Pull-requests permissions, no admin, and
-#     no access to the other submodules (they are only fetched/read).
-#     The job token can only write to the parent repo, hence a separate
-#     token for the submodules.
+#     permissions for this workflow: Contents: Read and write on
+#     eluinstra/ebms-core (push the
+#     dev-2.20.x branch, push the tags, create the GitHub release, upload the
+#     JAR assets). No Actions/Workflows/Pull-requests
+#     permissions, no admin. Note the same secret is used by docs-deploy.yml,
+#     which additionally needs Contents write on eluinstra/ebms-admin (the
+#     repo hosting the GitHub Pages docs site); the remaining submodules are
+#     only fetched/read. The workflow token can only write to the parent
+#     repo, hence a separate token for the submodule.
 #
 # Job token permissions (declared in `permissions:` below, also minimal):
 #   contents: write - push the submodule pin to dev
@@ -102,7 +105,7 @@ jobs:
           # with "Author identity unknown"
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-          for d in ebms-core ebms-admin; do
+          for d in ebms-core; do
             # fetch tags too, so the release step can find the previous
             # release tag for the changelog body
             git -C "$d" fetch --quiet --tags origin dev-2.20.x
@@ -122,32 +125,27 @@ jobs:
         env:
           VERSION: ${{ steps.check.outputs.version }}
         run: |
-          # ebms-core: single <revision> in the root pom (children inherit it)
+          # ebms-core: single <revision> in the root pom (children, including
+          # the ebms-server module, inherit it)
           sed -i "s|<revision>.*</revision>|<revision>${VERSION}</revision>|" ebms-core/pom.xml
-          # ebms-admin: project version is the line after <artifactId>ebms-admin</artifactId>
-          sed -i "/<artifactId>ebms-admin<\/artifactId>/{n;s/<version>.*<\/version>/<version>${VERSION}<\/version>/}" ebms-admin/pom.xml
-          grep -H "<revision>\|<version>${VERSION}</version>" ebms-core/pom.xml ebms-admin/pom.xml
+          grep -H "<revision>" ebms-core/pom.xml
 
-      - name: Build ebms-core
-        run: mvn -B -T 1C -f ebms-core/pom.xml clean install -DskipTests -Ddependency-check.skip=true
-
-      - name: Build and test ebms-admin
-        run: mvn -B -T 1C -f ebms-admin/pom.xml clean verify -Ddependency-check.skip=true
+      - name: Build and test ebms-core
+        run: mvn -B -T 1C -f ebms-core/pom.xml clean install -Ddependency-check.skip=true
 
       - name: Collect release artifacts
         env:
           VERSION: ${{ steps.check.outputs.version }}
         run: |
-          mkdir -p dist/ebms-core dist/ebms-admin
+          mkdir -p dist/ebms-core
           cp "ebms-core/core/target/ebms-core-${VERSION}.jar" dist/ebms-core/
-          cp "ebms-admin/target/ebms-admin-${VERSION}.jar" dist/ebms-admin/
-          # plugin JARs (db + cache) go to both releases
+          # the embedded server fat jar (replaces the former ebms-admin jar)
+          cp "ebms-core/server/target/ebms-server-${VERSION}.jar" dist/ebms-core/
+          # plugin JARs (db + cache + messaging)
           for j in $(find ebms-core/plugin -name "ebms-*-${VERSION}.jar"); do
             cp "$j" dist/ebms-core/
-            cp "$j" dist/ebms-admin/
           done
           echo "ebms-core assets:"; ls dist/ebms-core
-          echo "ebms-admin assets:"; ls dist/ebms-admin
 
       - name: Smoke test (two-adapter message exchange)
         # adapter 1 = the just-built ebms-core server jar (local StartEmbedded,
@@ -178,12 +176,6 @@ jobs:
           git -C ebms-core tag "ebms-core-${VERSION}"
           git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" dev-2.20.x
           git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" "ebms-core-${VERSION}"
-
-          git -C ebms-admin add pom.xml
-          git -C ebms-admin commit -m "release ${VERSION}"
-          git -C ebms-admin tag "ebms-admin-${VERSION}"
-          git -C ebms-admin push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-admin.git" dev-2.20.x
-          git -C ebms-admin push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-admin.git" "ebms-admin-${VERSION}"
 
       - name: Create GitHub releases
         # runs after the tags are pushed: posting a release for a tag that
@@ -236,7 +228,6 @@ jobs:
             echo "${repo}: created release ${tag} (id ${release_id}) with $(ls "$dist" | wc -l) assets"
           }
           create_release eluinstra/ebms-core ebms-core dist/ebms-core "ebms-core-${VERSION}"
-          create_release eluinstra/ebms-admin ebms-admin dist/ebms-admin "ebms-admin-${VERSION}"
 
       - name: Prepare for next development iteration
         env:
@@ -244,13 +235,9 @@ jobs:
           TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
         run: |
           sed -i "s|<revision>.*</revision>|<revision>${SNAPSHOT}</revision>|" ebms-core/pom.xml
-          sed -i "/<artifactId>ebms-admin<\/artifactId>/{n;s/<version>.*<\/version>/<version>${SNAPSHOT}<\/version>/}" ebms-admin/pom.xml
           git -C ebms-core add pom.xml
           git -C ebms-core commit -m "prepare for next development iteration"
           git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" dev-2.20.x
-          git -C ebms-admin add pom.xml
-          git -C ebms-admin commit -m "prepare for next development iteration"
-          git -C ebms-admin push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-admin.git" dev-2.20.x
 
       - name: Pin submodules in parent
         env:
@@ -259,15 +246,15 @@ jobs:
           # Update every submodule to the tip of its configured branch, so the
           # pin commit captures the current state of ALL modules
           # (documentation, ebms-docker, ebms-perftest-setup in addition to
-          # ebms-core/ebms-admin, which are already at the dev-2.20.x tips,
-          # i.e. their <next patch>-SNAPSHOT commits from the step above)
+          # ebms-core, which is already at the dev-2.20.x tip, i.e. its
+          # <next patch>-SNAPSHOT commit from the step above)
           git submodule update --remote --checkout --quiet
           # ignore=all in .gitmodules makes plain `git add` skip gitlinks
-          git add -f ebms-core ebms-admin documentation ebms-docker ebms-perftest-setup
+          git add -f ebms-core documentation ebms-docker ebms-perftest-setup
           # ignore=all also hides gitlink changes from git diff/status, so
           # compare the SHAs directly to decide whether there is a change to commit
           changed=0
-          for d in ebms-core ebms-admin documentation ebms-docker ebms-perftest-setup; do
+          for d in ebms-core documentation ebms-docker ebms-perftest-setup; do
             if [ "$(git -C "$d" rev-parse HEAD)" != "$(git rev-parse HEAD:$d)" ]; then
               changed=1
             fi

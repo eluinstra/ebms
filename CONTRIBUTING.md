@@ -4,7 +4,8 @@ Thanks for your interest. Short checklist for contributors:
 
 - Fork the repository and create a branch named feature/<short-desc> or fix/<short-desc>
 - Target branch: dev
-- Run local build and tests: `make test` (ebms-core) and `make admin` (ebms-admin) — see Tooling below
+- Run local build and tests: `make test` (ebms-core, including the ebms-server
+  module) or `make server` (ebms-server with deps only) — see Tooling below
 - Add unit tests for new behavior under src/test/java
 - Follow existing code style and run `make checkstyle` (or `mvn checkstyle:check`) if needed
 - Update CHANGELOG.md with a short note under Unreleased
@@ -19,7 +20,7 @@ remember the `-f` / `-pl` / `-am` flags. Start with `make help`.
 | --- | --- |
 | `make build` | ebms-core clean install (all core modules) |
 | `make test` | ebms-core clean verify (all core unit + integration tests) |
-| `make admin` | install ebms-core (skipTests) then build + test ebms-admin |
+| `make server` | build + test the ebms-server module (embedded SOAP/REST server) with its deps |
 | `make module M=<path>` | build one core module with its deps (e.g. `make module M=core`) |
 | `make checkstyle` | checkstyle across the core reactor |
 | `make skip-tests` | quick ebms-core build without tests |
@@ -53,8 +54,8 @@ full equivalents. There is no root `pom.xml`, so always use `mvn -f <module>/pom
 | --- | --- |
 | Java code in ebms-core/common or ebms-core/core | mvn -f ebms-core/pom.xml -B -pl common,core -am test |
 | DB plugin code under ebms-core/plugin/db | mvn -f ebms-core/pom.xml -B -pl plugin/db -am verify |
-| API/signature changes in ebms-core/core | mvn -f ebms-core/pom.xml -B verify and mvn -f ebms-admin/pom.xml -B test |
-| ebms-admin web/service changes | mvn -f ebms-admin/pom.xml -B verify |
+| API/signature changes in ebms-core/core | mvn -f ebms-core/pom.xml -B verify (covers server and plugins) |
+| ebms-server (ebms-core/server) changes | mvn -f ebms-core/pom.xml -B -pl server -am verify |
 | Docs-only changes | Build or serve documentation if structure/navigation changed |
 
 When changing schema, SQL, or DB persistence behavior:
@@ -67,23 +68,25 @@ If in doubt, open an issue first.
 
 Releasing a version (maintainer)
 
-A release is done for ebms-core and ebms-admin together via the GitHub
+A release is done for ebms-core (which includes the ebms-server embedded
+server module) via the GitHub
 Actions workflow .github/workflows/release.yml (workflow_dispatch).
 
 Prerequisites:
 - Everything that must be part of the release is committed and pushed to the
-  dev-2.20.x branch of both eluinstra/ebms-core and eluinstra/ebms-admin.
-  The workflow releases from the remote tip of those branches, so the
-  submodule pins in the parent repo do not matter.
+  dev-2.20.x branch of eluinstra/ebms-core.
+  The workflow releases from the remote tip of that branch, so the
+  submodule pin in the parent repo does not matter.
 - CI on dev is green.
 - Repository secret SUBMODULE_GITHUB_TOKEN is set: a PAT (or GitHub App
-  token). Minimal permissions: "Contents: Read and write" on
-  eluinstra/ebms-core and eluinstra/ebms-admin (used to push the
-  dev-2.20.x branch, push the tags, create the GitHub releases and upload
-  the JAR assets). Nothing else is required - the other submodules are
-  only read, and Actions/Workflows/Pull-requests permissions are not used.
+  token). Minimal permissions for the release: "Contents: Read and write" on
+  eluinstra/ebms-core (used to push the
+  dev-2.20.x branch, push the tags, create the GitHub release and upload
+  the JAR assets). The same secret is reused by docs-deploy.yml, so the PAT
+  also needs Contents write on eluinstra/ebms-admin (which hosts the docs
+  site). No Actions/Workflows/Pull-requests permissions are used.
   The job token can only write to the parent repo, hence a separate token
-  for the submodules. The workflow itself declares only contents:write
+  for the submodule. The workflow itself declares only contents:write
   (push the pin to dev) and actions:read (CI polling).
 
 Trigger:
@@ -91,19 +94,18 @@ Trigger:
 2. Branch: dev, version: e.g. 2.20.9 (must match MAJOR.MINOR.PATCH)
 
 What the workflow does (in order):
-1. Bump the version in ebms-core/pom.xml (<revision>) and ebms-admin/pom.xml
-2. Build ebms-core (skipTests) and build + test ebms-admin
-3. Commit "release <v>" and tag ebms-core-<v> / ebms-admin-<v>, push branch + tags
-4. Create a GitHub release on each submodule repo with the built JARs as
-   assets (core jar / admin fat jar + all db + cache plugins) and an
-   auto-generated changelog (commit subjects since the previous release tag)
-5. Bump both to <next patch>-SNAPSHOT, commit and push
+1. Bump the version in ebms-core/pom.xml (<revision>)
+2. Build and test the ebms-core reactor (common, core, server, plugins)
+3. Commit "release <v>" and tag ebms-core-<v>, push branch + tag
+4. Create a GitHub release on the submodule repo with the built JARs as
+   assets (core jar / ebms-server fat jar + all db + cache + messaging plugins)
+   and an auto-generated changelog (commit subjects since the previous release tag)
+5. Bump to <next patch>-SNAPSHOT, commit and push
 6. Pin the new submodule commits in the parent repo and push to dev
 7. Wait for the CI run on dev to finish green
 
 Results:
 - https://github.com/eluinstra/ebms-core/releases/tag/ebms-core-<v>
-- https://github.com/eluinstra/ebms-admin/releases/tag/ebms-admin-<v>
 
 Notes:
 - Nothing is published to Maven Central or GitHub Packages; the JARs are

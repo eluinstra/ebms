@@ -6,9 +6,9 @@ name: Deploy Docker images
 #   eluinstra/ebms-adapter-pg     + hazelcast cache + postgres db plugin
 #   eluinstra/ebms-adapter-test   + h2 db plugin (used by smoke tests)
 #
-# The Dockerfiles download the release JARs from the eluinstra/ebms-admin
-# GitHub release at build time, so run the Release workflow first and pass
-# that version here, e.g. 2.20.9.
+# The Dockerfiles download the release JARs from the eluinstra/ebms-core
+# GitHub release at build time (ebms-server fat jar + plugin jars), so run
+# the Release workflow first and pass that version here, e.g. 2.20.9.
 #
 # What it does (mirrors the local scripts in ebms-docker/images/):
 #   1. Validate the version input and check the GitHub release exists
@@ -65,23 +65,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Init ebms-docker + ebms-core submodules
-        # ebms-core hosts the base (bin) adapter Dockerfile
-        run: |
-          git submodule update --init --depth 1 ebms-docker
-          git submodule update --init --depth 1 ebms-core
+      - name: Init ebms-docker submodule
+        # hosts the Dockerfiles of all three adapter images
+        run: git submodule update --init --depth 1 ebms-docker
 
       - name: Fail fast if the release does not exist yet
-        # The Dockerfiles curl the JARs from the GitHub release at build
-        # time; check now (first byte only) so a missing release fails with
-        # a clear message instead of a curl failure inside the image build
+        # The Dockerfiles curl the JARs from the ebms-core GitHub release at
+        # build time; check now (first byte only) so a missing release fails
+        # with a clear message instead of a curl failure inside the image build
         env:
           VERSION: ${{ steps.check.outputs.version }}
         run: |
-          url="https://github.com/eluinstra/ebms-admin/releases/download/ebms-admin-${VERSION}/ebms-admin-${VERSION}.jar"
+          url="https://github.com/eluinstra/ebms-core/releases/download/ebms-core-${VERSION}/ebms-server-${VERSION}.jar"
           code=$(curl -sL -r 0-0 -o /dev/null -w '%{http_code}' "$url")
           if [ "$code" != "200" ] && [ "$code" != "206" ]; then
-            echo "::error::GitHub release ebms-admin-${VERSION} not found (HTTP ${code}). Run the Release workflow first."
+            echo "::error::GitHub release ebms-core-${VERSION} not found (HTTP ${code}). Run the Release workflow first."
             exit 1
           fi
 
@@ -106,9 +104,8 @@ jobs:
           REPO: eluinstra/
         run: |
           set -eu
-          # same images + tag scheme as ebms-docker/images/env.sh + build.sh
-          # the base (bin) adapter Dockerfile lives in the ebms-core project;
-          # pg and test stay in ebms-docker/images/
+          # same images + tag scheme as ebms-docker/images/env.sh + build.sh;
+          # all three adapter Dockerfiles live in ebms-docker/images/
           IMAGES="ebms-adapter-bin ebms-adapter-pg ebms-adapter-test"
           for ARCH in amd64 arm64; do
             for IMAGE in $IMAGES; do
@@ -119,11 +116,7 @@ jobs:
               if [ "$IMAGE" != "ebms-adapter-bin" ]; then
                 EXTRA=(--build-context "eluinstra/ebms-adapter-bin:${VERSION}=docker-image://${REPO}ebms-adapter-bin:${VERSION}-${ARCH}")
               fi
-              if [ "$IMAGE" = "ebms-adapter-bin" ]; then
-                CONTEXT="ebms-core/docker/ebms-adapter-bin"
-              else
-                CONTEXT="ebms-docker/images/${IMAGE}"
-              fi
+              CONTEXT="ebms-docker/images/${IMAGE}"
               echo "Building ${REPO}${IMAGE}:${VERSION}-${ARCH} (context: ${CONTEXT})"
               docker buildx build \
                 --platform "linux/${ARCH}" \

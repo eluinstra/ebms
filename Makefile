@@ -10,15 +10,14 @@
 MVN := mvn -B
 
 CORE   := ebms-core/pom.xml
-ADMIN  := ebms-admin/pom.xml
 
-.PHONY: help build test admin module checkstyle skip-tests
+.PHONY: help build test server module checkstyle skip-tests
 
 help:
 	@echo "EbMS common targets"
 	@echo "  make build        Build all ebms-core modules (clean install)"
 	@echo "  make test         Build + test all ebms-core modules (verify)"
-	@echo "  make admin        Build ebms-core, then build + test ebms-admin"
+	@echo "  make server       Build + test the ebms-server module with its deps"
 	@echo "  make module M=X   Build a single core module with deps (M=path, e.g. core)"
 	@echo "  make checkstyle   Run checkstyle across the core reactor"
 	@echo "  make skip-tests   Quick core build without tests"
@@ -34,10 +33,10 @@ build:
 test:
 	$(MVN) -f $(CORE) clean verify
 
-# Build admin (installs core first, since admin depends on local core artifacts).
-admin:
-	$(MVN) -f $(CORE) clean install -DskipTests
-	$(MVN) -f $(ADMIN) clean verify
+# Build and test the embedded server module (ebms-server shaded jar) plus the
+# modules it depends on (common, core, plugins).
+server:
+	$(MVN) -f $(CORE) -pl server -am clean verify
 
 # Build a single core module plus its dependencies. Usage: make module M=core
 module:
