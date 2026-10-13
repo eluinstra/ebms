@@ -16,10 +16,7 @@ Artifacts are written to:
 Expected files:
 - `ebms-core-dependency-check-report.html`
 - `ebms-core-dependency-check-report.json`
-- `ebms-admin-dependency-check-report.html`
-- `ebms-admin-dependency-check-report.json`
 - `ebms-core-spotbugs.xml` (if generated)
-- `ebms-admin-spotbugs.xml` (if generated)
 
 ### OWASP Top 10 Coverage
 
@@ -28,18 +25,18 @@ Expected files:
 
 ### Notes
 
-- Admin suppression file used by dependency-check:
-  - `ebms-admin/dependency-check-suppressions.xml`
-- Admin OWASP plugin is configured in `ebms-admin/pom.xml` for suppression usage.
+- Suppression file used by dependency-check:
+  - `ebms-core/resources/reporting/dependency-check-suppressions.xml`
+- The OWASP plugin is configured in `ebms-core/pom.xml` for suppression usage.
 
 ### Realm Password Migration
 
 To migrate plaintext realm entries to BCrypt and create a backup:
 
 ```bash
-cd ebms-admin
-mvn -B -DskipTests compile
-java -cp target/classes:$(mvn -q -Dexec.classpathScope=compile -Dexec.executable=echo --non-recursive org.codehaus.mojo:exec-maven-plugin:3.5.0:exec) nl.clockwork.ebms.admin.RealmFileMigrator --file realm.properties
+cd ebms-core
+mvn -B -pl server -am install -DskipTests
+java -cp server/target/ebms-server-2.21.0-SNAPSHOT.jar nl.clockwork.ebms.server.embedded.admin.RealmFileMigrator --file realm.properties
 ```
 
 The migrator writes `realm.properties.bak` and updates the original file.
@@ -50,22 +47,22 @@ Legacy `MD5:`, `OBF:`, and `CRYPT:` entries are reported for manual reset.
 Add a user (stored as BCrypt):
 
 ```bash
-cd ebms-admin
-java -cp target/classes:$(mvn -q -Dexec.classpathScope=compile -Dexec.executable=echo --non-recursive org.codehaus.mojo:exec-maven-plugin:3.5.0:exec) nl.clockwork.ebms.admin.RealmFileMigrator --file realm.properties --add-user --username alice --password "change-me" --role user
+cd ebms-core
+java -cp server/target/ebms-server-2.21.0-SNAPSHOT.jar nl.clockwork.ebms.server.embedded.admin.RealmFileMigrator --file realm.properties --add-user --username alice --password "change-me" --role user
 ```
 
 Update a user password (and optionally role):
 
 ```bash
-cd ebms-admin
-java -cp target/classes:$(mvn -q -Dexec.classpathScope=compile -Dexec.executable=echo --non-recursive org.codehaus.mojo:exec-maven-plugin:3.5.0:exec) nl.clockwork.ebms.admin.RealmFileMigrator --file realm.properties --update-user --username alice --password "new-password"
+cd ebms-core
+java -cp server/target/ebms-server-2.21.0-SNAPSHOT.jar nl.clockwork.ebms.server.embedded.admin.RealmFileMigrator --file realm.properties --update-user --username alice --password "new-password"
 ```
 
 Remove a user:
 
 ```bash
-cd ebms-admin
-java -cp target/classes:$(mvn -q -Dexec.classpathScope=compile -Dexec.executable=echo --non-recursive org.codehaus.mojo:exec-maven-plugin:3.5.0:exec) nl.clockwork.ebms.admin.RealmFileMigrator --file realm.properties --remove-user --username alice
+cd ebms-core
+java -cp server/target/ebms-server-2.21.0-SNAPSHOT.jar nl.clockwork.ebms.server.embedded.admin.RealmFileMigrator --file realm.properties --remove-user --username alice
 ```
 
 Notes:
