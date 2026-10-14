@@ -76,10 +76,18 @@ CI/CD
   the next development iteration SNAPSHOT, pin the submodules in
   the parent, wait for CI. Requires secret
   SUBMODULE_GITHUB_TOKEN (minimal: Contents read+write on the ebms-core
-  repo; the same PAT also needs Contents read+write on ebms-admin because
-  docs-deploy.yml pushes the GitHub Pages site there; the job token declares
+  repo; the same PAT also needs Contents read+write on ebms-admin because it is
+  released as a companion and because docs-deploy.yml pushes the GitHub Pages
+  site there; the job token declares
   only contents:write + actions:read). See
   CONTRIBUTING.md ("Releasing a version") for prerequisites and recovery.
+- The GitHub release in ebms-core is the PRIMARY one (created first, gate of
+  the pipeline); after it a companion GitHub release is created in the legacy
+  eluinstra/ebms-admin repo (admin jar + the same plugin jars, body links to
+  the primary). The companion never blocks the primary: if the ebms-admin
+  release branch does not exist or its build fails, the companion is skipped
+  with a warning (an `admin` step output gates all admin steps) and the
+  ebms-core release completes.
 - Pre-releases (milestones/RCs): release.yml accepts MAJOR.MINOR.PATCH-QUALIFIER
   (2.21.0-M1, 2.21.0-RC1) and creates the GitHub release with prerelease: true.
   The next-iteration bump returns to <base>-SNAPSHOT (the base stays in

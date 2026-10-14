@@ -14,3 +14,10 @@ All notable changes to this project will be documented in this file.
 - ebms-docker: `bump.sh` accepts pre-release versions, and the image scripts
   (build/push/manifest) move only the exact version tag for a pre-release,
   so `latest` and `<major>.<minor>` stay on the last stable release
+- Release pipeline creates a companion GitHub release in the legacy
+  eluinstra/ebms-admin repo (admin console jar + the same plugin jars, tagged
+  `ebms-admin-<v>`, body links to the primary release) next to the ebms-core
+  one. The ebms-core GitHub release is the primary/first one: it is created
+  before the companion, and the companion can never block it — a missing
+  ebms-admin release branch or a failing ebms-admin build skips the companion
+  with a warning instead of failing the release

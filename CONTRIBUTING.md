@@ -84,12 +84,17 @@ Prerequisites:
   token). Minimal permissions for the release: "Contents: Read and write" on
   eluinstra/ebms-core (used to push the
   release branch, push the tags, create the GitHub release and upload
-  the JAR assets). The same secret is reused by docs-deploy.yml, so the PAT
-  also needs Contents write on eluinstra/ebms-admin (which hosts the docs
+  the JAR assets) and on eluinstra/ebms-admin (companion release: push the
+  release branch and tag, create the companion GitHub release, upload its JAR
+  assets). The same secret is reused by docs-deploy.yml, which also needs
+  Contents write on eluinstra/ebms-admin (which hosts the docs
   site). No Actions/Workflows/Pull-requests permissions are used.
   The job token can only write to the parent repo, hence a separate token
   for the submodule. The workflow itself declares only contents:write
   (push the pin to dev) and actions:read (CI polling).
+- The ebms-admin release branch (dev-<major>.<minor>.x) exists if the
+  companion release is wanted; when it is missing the companion is skipped
+  with a warning and only the primary ebms-core release is created.
 
 Trigger:
 1. GitHub -> eluinstra/ebms -> Actions -> Release -> Run workflow
@@ -114,20 +119,31 @@ Pre-releases (milestones / RCs):
   verify them with `make release-check` after any change.
 
 What the workflow does (in order):
-1. Bump the version in ebms-core/pom.xml (<revision>)
-2. Build and test the ebms-core reactor (common, core, server, plugins)
-3. Commit "release <v>" and tag ebms-core-<v>, push branch + tag
-4. Create a GitHub release on the submodule repo with the built JARs as
-   assets (core jar / ebms-server fat jar + all db + cache + messaging plugins)
-   and an auto-generated changelog (commit subjects since the previous release
-   tag on this branch; marked pre-release for a milestone)
+1. Bump the version in ebms-core/pom.xml (<revision>) and — when the companion
+   is active — in ebms-admin/pom.xml (project <version>)
+2. Build and test the ebms-core reactor (common, core, server, plugins), then
+   build and test the legacy ebms-admin project
+3. Commit "release <v>" and tag ebms-core-<v> (+ ebms-admin-<v> for the
+   companion), push branch + tag
+4. Create the PRIMARY GitHub release on the ebms-core repo with the built JARs
+   as assets (core jar / ebms-server fat jar + all db + cache + messaging
+   plugins) and an auto-generated changelog (commit subjects since the previous
+   release tag on this branch; marked pre-release for a milestone), then the
+   companion ebms-admin GitHub release (admin console jar + the same plugin
+   jars), whose body links to the primary ebms-core release
 5. Bump to the next development iteration SNAPSHOT (<next patch>-SNAPSHOT for a
    stable release, <base>-SNAPSHOT for a pre-release), commit and push
 6. Pin the new submodule commits in the parent repo and push to dev
 7. Wait for the CI run on dev to finish green
 
+The ebms-core release is the primary one: it is created first, and the legacy
+ebms-admin companion can never block it — when ebms-admin's release branch does
+not exist, or its build fails, the companion is skipped with a warning and the
+ebms-core release completes as normal.
+
 Results:
-- https://github.com/eluinstra/ebms-core/releases/tag/ebms-core-<v>
+- https://github.com/eluinstra/ebms-core/releases/tag/ebms-core-<v>  (primary)
+- https://github.com/eluinstra/ebms-admin/releases/tag/ebms-admin-<v>  (companion)
 
 Notes:
 - Nothing is published to Maven Central or GitHub Packages; the JARs are

@@ -1,7 +1,12 @@
 name: Release
 
 # Parent-driven release of ebms-core, which includes the ebms-server embedded
-# server module (the successor of the former ebms-admin project).
+# server module (the successor of the former ebms-admin project). A companion
+# GitHub release is also created in the legacy eluinstra/ebms-admin repository
+# (its console jar + the same plugin jars), but the ebms-core release is the
+# PRIMARY one: it is created (and its assets uploaded) first, and the
+# ebms-admin release is only a downstream companion for users still on the
+# legacy admin console.
 #
 # Trigger: Actions tab -> Release -> Run workflow (branch: dev), enter the
 # target version, e.g. 2.20.9 (stable) or 2.21.0-M1 (pre-release)
@@ -10,7 +15,7 @@ name: Release
 #   A version of the form MAJOR.MINOR.PATCH-QUALIFIER (e.g. 2.21.0-M1,
 #   2.21.0-RC1, 2.21.0-beta.1) releases a pre-release of MAJOR.MINOR.PATCH:
 #     - the GitHub release is created with prerelease: true (and its tag
-#       ebms-core-<v>, e.g. ebms-core-2.21.0-M1)
+#       ebms-core-<v>, e.g. ebms-core-2.21.0-M1; likewise ebms-admin-<v>)
 #     - the <revision> is bumped to the version itself (2.21.0-M1) and the
 #       "next development iteration" step returns it to MAJOR.MINOR.PATCH-SNAPSHOT
 #       (2.21.0-SNAPSHOT), i.e. the base version stays in development; it is NOT
@@ -21,9 +26,11 @@ name: Release
 #   with docker-deploy.yml; run it with --self-test when you change it).
 #
 # What it does (in order):
-#   1. Check out ebms-core at the tip of the release branch (dev-<major>.<minor>.x)
-#   2. Bump the version to the target release version
-#   3. Build and test the reactor (same command as ci.yml)
+#   1. Check out ebms-core + ebms-admin at the tip of the release branch
+#      (dev-<major>.<minor>.x)
+#   2. Bump the version to the target release version (both modules)
+#   3. Build and test the reactor (same command as ci.yml), then build and
+#      test the legacy ebms-admin project
 #   4. Smoke test (ebms-core/smoke-test.sh): adapter 1 = the just-built
 #      ebms-core server jar running locally (StartEmbedded SSL), adapter 2 =
 #      the published
@@ -31,12 +38,14 @@ name: Release
 #      message exchange (the release candidate must be able to message an
 #      already-deployed adapter). A failure aborts the release before any
 #      tag, push or GitHub release is created
-#   5. Commit + tag + push the submodule (ebms-core-<v>)
-#   6. Create a GitHub release on the new tag, with the built JARs attached
-#      as assets (core jar, ebms-server shaded jar + all db/cache plugins)
+#   5. Commit + tag + push the submodules (ebms-core-<v>, ebms-admin-<v>)
+#   6. Create the PRIMARY GitHub release on the ebms-core tag first, with the
+#      built JARs attached as assets (core jar, ebms-server shaded jar + all
+#      db/cache plugins), then the companion ebms-admin release (admin jar +
+#      the same plugin jars)
 #   7. Bump to the next development iteration SNAPSHOT ("prepare for next
 #      development iteration": <next patch>-SNAPSHOT for a stable release,
-#      <base>-SNAPSHOT for a pre-release), commit + push
+#      <base>-SNAPSHOT for a pre-release), commit + push (both modules)
 #   8. Update all submodules to their branch tips and pin them in the parent
 #      repo (the pin commit captures the post-release state of every module:
 #      ebms-core at its next-iteration SNAPSHOT commit on the release branch),
@@ -55,15 +64,15 @@ name: Release
 # Required repository secret:
 #   SUBMODULE_GITHUB_TOKEN - a PAT (or GitHub App token). Minimal
 #     permissions for this workflow: Contents: Read and write on
-#     eluinstra/ebms-core (push the
+#     eluinstra/ebms-core AND eluinstra/ebms-admin (push the
 #     release branch, e.g. dev-2.21.x, push the tags, create the GitHub
-#     release, upload the
+#     releases, upload the
 #     JAR assets). No Actions/Workflows/Pull-requests
 #     permissions, no admin. Note the same secret is used by docs-deploy.yml,
 #     which additionally needs Contents write on eluinstra/ebms-admin (the
-#     repo hosting the GitHub Pages docs site); the remaining submodules are
-#     only fetched/read. The workflow token can only write to the parent
-#     repo, hence a separate token for the submodule.
+#     repo hosting the GitHub Pages docs site, which ebms-admin also is); the
+#     remaining submodules are only fetched/read. The workflow token can only
+#     write to the parent repo, hence a separate token for the submodules.
 #
 # Job token permissions (declared in `permissions:` below, also minimal):
 #   contents: write - push the submodule pin to dev
@@ -128,6 +137,7 @@ jobs:
           java-version: '21'
 
       - name: Prepare submodules
+        id: prepare
         env:
           BRANCH: ${{ steps.check.outputs.branch }}
         run: |
@@ -136,13 +146,21 @@ jobs:
           # with "Author identity unknown"
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-          for d in ebms-core; do
+          admin=true
+          for d in ebms-core ebms-admin; do
             # a derived branch that does not exist remotely (e.g. releasing
             # 2.22.0-M1 before dev-2.22.x was created) otherwise fails with a
             # bare "couldn't find remote ref"
             if ! git -C "$d" ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
-              echo "::error::branch $BRANCH does not exist on eluinstra/ebms-core (derived from the version; pass the branch input to override)"
-              exit 1
+              if [ "$d" = ebms-core ]; then
+                echo "::error::branch $BRANCH does not exist on eluinstra/ebms-core (derived from the version; pass the branch input to override)"
+                exit 1
+              fi
+              # the ebms-admin release is a companion of the primary ebms-core
+              # one: a missing legacy release branch must never block it
+              echo "::warning::branch $BRANCH does not exist on eluinstra/ebms-admin; skipping the companion ebms-admin release"
+              admin=false
+              continue
             fi
             # fetch tags too, so the release step can find the previous
             # release tag for the changelog body
@@ -158,22 +176,47 @@ jobs:
               exit 1
             fi
           done
+          echo "admin=${admin}" >> "$GITHUB_OUTPUT"
 
       - name: Bump version
         env:
           VERSION: ${{ steps.check.outputs.version }}
+          ADMIN: ${{ steps.prepare.outputs.admin }}
         run: |
           # ebms-core: single <revision> in the root pom (children, including
           # the ebms-server module, inherit it)
           sed -i "s|<revision>.*</revision>|<revision>${VERSION}</revision>|" ebms-core/pom.xml
           grep -H "<revision>" ebms-core/pom.xml
+          # ebms-admin (legacy companion): project version is the line after
+          # <artifactId>ebms-admin</artifactId>
+          if [ "$ADMIN" = "true" ]; then
+            sed -i "/<artifactId>ebms-admin<\/artifactId>/{n;s/<version>.*<\/version>/<version>${VERSION}<\/version>/}" ebms-admin/pom.xml
+            grep -H "<version>${VERSION}</version>" ebms-admin/pom.xml
+          fi
 
       - name: Build and test ebms-core
         run: mvn -B -T 1C -f ebms-core/pom.xml clean install -Ddependency-check.skip=true
 
+      - name: Build and test ebms-admin
+        id: adminbuild
+        if: steps.prepare.outputs.admin == 'true'
+        run: |
+          # a failure of the legacy companion build must not block the primary
+          # ebms-core release: skip the companion instead (with a warning).
+          # This step owns the final admin flag: skipped (branch missing) or
+          # admin=false here means the companion release is skipped entirely.
+          if mvn -B -T 1C -f ebms-admin/pom.xml clean verify -Ddependency-check.skip=true; then
+            echo 'admin=true' >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::ebms-admin build failed; skipping the companion ebms-admin release"
+            git -C ebms-admin checkout -- pom.xml
+            echo 'admin=false' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Collect release artifacts
         env:
           VERSION: ${{ steps.check.outputs.version }}
+          ADMIN: ${{ steps.adminbuild.outputs.admin }}
         run: |
           mkdir -p dist/ebms-core
           cp "ebms-core/core/target/ebms-core-${VERSION}.jar" dist/ebms-core/
@@ -184,6 +227,16 @@ jobs:
             cp "$j" dist/ebms-core/
           done
           echo "ebms-core assets:"; ls dist/ebms-core
+          # the legacy admin console jar + the same plugin jars go to the
+          # companion release (only when the companion is active)
+          if [ "$ADMIN" = "true" ]; then
+            mkdir -p dist/ebms-admin
+            cp "ebms-admin/target/ebms-admin-${VERSION}.jar" dist/ebms-admin/
+            for j in $(find ebms-core/plugin -name "ebms-*-${VERSION}.jar"); do
+              cp "$j" dist/ebms-admin/
+            done
+            echo "ebms-admin assets:"; ls dist/ebms-admin
+          fi
 
       - name: Smoke test (two-adapter message exchange)
         # adapter 1 = the just-built ebms-core server jar (local StartEmbedded,
@@ -208,6 +261,7 @@ jobs:
         env:
           VERSION: ${{ steps.check.outputs.version }}
           BRANCH: ${{ steps.check.outputs.branch }}
+          ADMIN: ${{ steps.adminbuild.outputs.admin }}
           TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
         run: |
           git -C ebms-core add pom.xml
@@ -215,6 +269,13 @@ jobs:
           git -C ebms-core tag "ebms-core-${VERSION}"
           git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" "$BRANCH"
           git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" "ebms-core-${VERSION}"
+          if [ "$ADMIN" = "true" ]; then
+            git -C ebms-admin add pom.xml
+            git -C ebms-admin commit -m "release ${VERSION}"
+            git -C ebms-admin tag "ebms-admin-${VERSION}"
+            git -C ebms-admin push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-admin.git" "$BRANCH"
+            git -C ebms-admin push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-admin.git" "ebms-admin-${VERSION}"
+          fi
 
       - name: Create GitHub releases
         # runs after the tags are pushed: posting a release for a tag that
@@ -224,10 +285,11 @@ jobs:
           VERSION: ${{ steps.check.outputs.version }}
           BRANCH: ${{ steps.check.outputs.branch }}
           PRERELEASE: ${{ steps.check.outputs.prerelease }}
+          ADMIN: ${{ steps.adminbuild.outputs.admin }}
           TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
         run: |
           create_release() {
-            local repo=$1 dir=$2 dist=$3 tag=$4
+            local repo=$1 dir=$2 dist=$3 tag=$4 prefix=$5
             # changelog body: commit subjects since the previous release tag on
             # this branch. The tag we just created sits at HEAD and must not be
             # its own predecessor; the script picks the newest tag that is an
@@ -235,12 +297,17 @@ jobs:
             # the milestone -> RC -> GA sequence that a plain version sort gets
             # wrong (sort -V puts 2.21.0 before 2.21.0-M1).
             local prev_tag body
-            prev_tag=$(scripts/release-version.sh prev-tag --dir "$dir" --exclude "$tag")
+            prev_tag=$(scripts/release-version.sh prev-tag --dir "$dir" --prefix "$prefix" --exclude "$tag")
             body=""
             if [ -n "$prev_tag" ]; then
               body=$(git -C "$dir" log --no-merges --pretty='- %s' "${prev_tag}..HEAD" | grep -v '^- release ' || true)
             fi
             [ -n "$body" ] || body="- (no changelog available)"
+            if [ "$prefix" = ebms-admin ]; then
+              # the ebms-core release is the primary one; point here from the
+              # legacy companion so users land on the right distribution
+              body=$(printf 'Primary release: https://github.com/eluinstra/ebms-core/releases/tag/ebms-core-%s\n\n%s' "$VERSION" "$body")
+            fi
             local payload release_id
             payload=$(jq -n --arg tag "$tag" --arg body "$body" --arg target "$BRANCH" --argjson pre "$PRERELEASE" \
               '{tag_name: $tag, target_commitish: $target, body: $body, draft: false, prerelease: $pre}')
@@ -273,12 +340,21 @@ jobs:
             done
             echo "${repo}: created release ${tag} (id ${release_id}, prerelease ${PRERELEASE}) with $(ls "$dist" | wc -l) assets"
           }
-          create_release eluinstra/ebms-core ebms-core dist/ebms-core "ebms-core-${VERSION}"
+          # primary release first: ebms-core (ebms-server successor of the
+          # former ebms-admin project); the ebms-admin companion is only a
+          # legacy distribution and is created afterwards
+          create_release eluinstra/ebms-core ebms-core dist/ebms-core "ebms-core-${VERSION}" ebms-core
+          if [ "$ADMIN" = "true" ]; then
+            create_release eluinstra/ebms-admin ebms-admin dist/ebms-admin "ebms-admin-${VERSION}" ebms-admin
+          else
+            echo "companion ebms-admin release skipped (admin=${ADMIN})"
+          fi
 
       - name: Prepare for next development iteration
         env:
           SNAPSHOT: ${{ steps.check.outputs.snapshot }}
           BRANCH: ${{ steps.check.outputs.branch }}
+          ADMIN: ${{ steps.adminbuild.outputs.admin }}
           TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
         run: |
           # stable release: <next patch>-SNAPSHOT; pre-release: back to
@@ -288,11 +364,18 @@ jobs:
           git -C ebms-core add pom.xml
           git -C ebms-core commit -m "prepare for next development iteration"
           git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" "$BRANCH"
+          if [ "$ADMIN" = "true" ]; then
+            sed -i "/<artifactId>ebms-admin<\/artifactId>/{n;s/<version>.*<\/version>/<version>${SNAPSHOT}<\/version>/}" ebms-admin/pom.xml
+            git -C ebms-admin add pom.xml
+            git -C ebms-admin commit -m "prepare for next development iteration"
+            git -C ebms-admin push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-admin.git" "$BRANCH"
+          fi
 
       - name: Pin submodules in parent
         env:
           VERSION: ${{ steps.check.outputs.version }}
           BRANCH: ${{ steps.check.outputs.branch }}
+          ADMIN: ${{ steps.adminbuild.outputs.admin }}
         run: |
           # Update every submodule to the tip of its configured branch, so the
           # pin commit captures the current state of ALL modules
@@ -310,12 +393,21 @@ jobs:
             exit 1
           fi
           git -C ebms-core checkout --quiet FETCH_HEAD
+          if [ "$ADMIN" = "true" ]; then
+            # same for the companion: pin ebms-admin at the tip of the release
+            # branch we released from, not at its .gitmodules `dev` branch
+            if ! git -C ebms-admin fetch --quiet origin "$BRANCH"; then
+              echo "::error::could not fetch $BRANCH from ebms-admin; refusing to pin an unknown commit"
+              exit 1
+            fi
+            git -C ebms-admin checkout --quiet FETCH_HEAD
+          fi
           # ignore=all in .gitmodules makes plain `git add` skip gitlinks
-          git add -f ebms-core documentation ebms-docker ebms-perftest-setup
+          git add -f ebms-core ebms-admin documentation ebms-docker ebms-perftest-setup
           # ignore=all also hides gitlink changes from git diff/status, so
           # compare the SHAs directly to decide whether there is a change to commit
           changed=0
-          for d in ebms-core documentation ebms-docker ebms-perftest-setup; do
+          for d in ebms-core ebms-admin documentation ebms-docker ebms-perftest-setup; do
             if [ "$(git -C "$d" rev-parse HEAD)" != "$(git rev-parse HEAD:$d)" ]; then
               changed=1
             fi
