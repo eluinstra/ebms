@@ -24,6 +24,7 @@ remember the `-f` / `-pl` / `-am` flags. Start with `make help`.
 | `make module M=<path>` | build one core module with its deps (e.g. `make module M=core`) |
 | `make checkstyle` | checkstyle across the core reactor |
 | `make skip-tests` | quick ebms-core build without tests |
+| `make release-check` | self-test the release version rules (scripts/release-version.sh) |
 
 For authenticated submodule pushes (required because submodule remotes are plain
 HTTPS and `.gitmodules` sets `ignore = all`), use `scripts/push-submodule.sh`:
@@ -74,14 +75,15 @@ Actions workflow .github/workflows/release.yml (workflow_dispatch).
 
 Prerequisites:
 - Everything that must be part of the release is committed and pushed to the
-  dev-2.20.x branch of eluinstra/ebms-core.
+  release branch of eluinstra/ebms-core (dev-<major>.<minor>.x of the version
+  being released, e.g. dev-2.21.x for 2.21.0-M1).
   The workflow releases from the remote tip of that branch, so the
   submodule pin in the parent repo does not matter.
 - CI on dev is green.
 - Repository secret SUBMODULE_GITHUB_TOKEN is set: a PAT (or GitHub App
   token). Minimal permissions for the release: "Contents: Read and write" on
   eluinstra/ebms-core (used to push the
-  dev-2.20.x branch, push the tags, create the GitHub release and upload
+  release branch, push the tags, create the GitHub release and upload
   the JAR assets). The same secret is reused by docs-deploy.yml, so the PAT
   also needs Contents write on eluinstra/ebms-admin (which hosts the docs
   site). No Actions/Workflows/Pull-requests permissions are used.
@@ -91,7 +93,25 @@ Prerequisites:
 
 Trigger:
 1. GitHub -> eluinstra/ebms -> Actions -> Release -> Run workflow
-2. Branch: dev, version: e.g. 2.20.9 (must match MAJOR.MINOR.PATCH)
+2. Branch: dev, version: e.g. 2.20.9 (MAJOR.MINOR.PATCH) or 2.21.0-M1
+   (pre-release); branch is optional and defaults to dev-<major>.<minor>.x
+   derived from the version
+
+Pre-releases (milestones / RCs):
+- A version with a qualifier (2.21.0-M1, 2.21.0-RC1, 2.21.0-beta.1) is a
+  pre-release of MAJOR.MINOR.PATCH. It is tagged ebms-core-<v> and its GitHub
+  release is marked "pre-release".
+- The <revision> is bumped to the pre-release version, then returned to
+  MAJOR.MINOR.PATCH-SNAPSHOT (the base version stays in development), instead
+  of moving to the next patch like a stable release.
+- Pre-release Docker images (docker-deploy.yml) publish only their own version
+  tag; the floating latest / <major>.<minor> tags always stay on the last
+  stable release.
+- The smoke test still messages the release candidate against the published
+  adapter image built from the last stable release, so a milestone that
+  intentionally changes wire behaviour can fail that gate by design.
+- Version rules live in scripts/release-version.sh (shared by both workflows);
+  verify them with `make release-check` after any change.
 
 What the workflow does (in order):
 1. Bump the version in ebms-core/pom.xml (<revision>)
@@ -99,8 +119,10 @@ What the workflow does (in order):
 3. Commit "release <v>" and tag ebms-core-<v>, push branch + tag
 4. Create a GitHub release on the submodule repo with the built JARs as
    assets (core jar / ebms-server fat jar + all db + cache + messaging plugins)
-   and an auto-generated changelog (commit subjects since the previous release tag)
-5. Bump to <next patch>-SNAPSHOT, commit and push
+   and an auto-generated changelog (commit subjects since the previous release
+   tag on this branch; marked pre-release for a milestone)
+5. Bump to the next development iteration SNAPSHOT (<next patch>-SNAPSHOT for a
+   stable release, <base>-SNAPSHOT for a pre-release), commit and push
 6. Pin the new submodule commits in the parent repo and push to dev
 7. Wait for the CI run on dev to finish green
 

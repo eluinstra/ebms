@@ -4,10 +4,24 @@ name: Release
 # server module (the successor of the former ebms-admin project).
 #
 # Trigger: Actions tab -> Release -> Run workflow (branch: dev), enter the
-# target version, e.g. 2.20.9
+# target version, e.g. 2.20.9 (stable) or 2.21.0-M1 (pre-release)
+#
+# Pre-releases (milestones, RCs):
+#   A version of the form MAJOR.MINOR.PATCH-QUALIFIER (e.g. 2.21.0-M1,
+#   2.21.0-RC1, 2.21.0-beta.1) releases a pre-release of MAJOR.MINOR.PATCH:
+#     - the GitHub release is created with prerelease: true (and its tag
+#       ebms-core-<v>, e.g. ebms-core-2.21.0-M1)
+#     - the <revision> is bumped to the version itself (2.21.0-M1) and the
+#       "next development iteration" step returns it to MAJOR.MINOR.PATCH-SNAPSHOT
+#       (2.21.0-SNAPSHOT), i.e. the base version stays in development; it is NOT
+#       bumped to the next patch like a stable release
+#     - the ebms-core branch is derived from the version (2.21.x ->
+#       dev-2.21.x); override with the optional branch input
+#   Version parsing/validation lives in scripts/release-version.sh (shared
+#   with docker-deploy.yml; run it with --self-test when you change it).
 #
 # What it does (in order):
-#   1. Check out ebms-core at the tip of dev-2.20.x
+#   1. Check out ebms-core at the tip of the release branch (dev-<major>.<minor>.x)
 #   2. Bump the version to the target release version
 #   3. Build and test the reactor (same command as ci.yml)
 #   4. Smoke test (ebms-core/smoke-test.sh): adapter 1 = the just-built
@@ -20,12 +34,20 @@ name: Release
 #   5. Commit + tag + push the submodule (ebms-core-<v>)
 #   6. Create a GitHub release on the new tag, with the built JARs attached
 #      as assets (core jar, ebms-server shaded jar + all db/cache plugins)
-#   7. Bump to <next patch>-SNAPSHOT ("prepare for next development
-#      iteration"), commit + push
+#   7. Bump to the next development iteration SNAPSHOT ("prepare for next
+#      development iteration": <next patch>-SNAPSHOT for a stable release,
+#      <base>-SNAPSHOT for a pre-release), commit + push
 #   8. Update all submodules to their branch tips and pin them in the parent
 #      repo (the pin commit captures the post-release state of every module:
-#      ebms-core at its <next patch>-SNAPSHOT commit), push to dev
+#      ebms-core at its next-iteration SNAPSHOT commit on the release branch),
+#      push to dev
 #   9. Wait for the ci.yml run triggered by the pin to finish green
+#
+# Pre-release caveat: the smoke test messages the release candidate against the
+# published eluinstra/ebms-adapter-bin image, which is built from the last
+# stable release. A milestone whose behaviour intentionally diverges from that
+# image (incompatible wire format, CPA/policy changes) can legitimately fail
+# step 4; that is a judgement call for the releaser, not a pipeline bug.
 #
 # Nothing is published to Maven Central or GitHub Packages; the built JARs
 # are attached to the GitHub release only.
@@ -34,7 +56,8 @@ name: Release
 #   SUBMODULE_GITHUB_TOKEN - a PAT (or GitHub App token). Minimal
 #     permissions for this workflow: Contents: Read and write on
 #     eluinstra/ebms-core (push the
-#     dev-2.20.x branch, push the tags, create the GitHub release, upload the
+#     release branch, e.g. dev-2.21.x, push the tags, create the GitHub
+#     release, upload the
 #     JAR assets). No Actions/Workflows/Pull-requests
 #     permissions, no admin. Note the same secret is used by docs-deploy.yml,
 #     which additionally needs Contents write on eluinstra/ebms-admin (the
@@ -54,9 +77,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version, e.g. 2.20.9'
+        description: 'Release version, e.g. 2.20.9 or 2.21.0-M1 (pre-release)'
         required: true
         type: string
+      branch:
+        description: 'ebms-core branch to release from (optional; defaults to dev-<major>.<minor>.x of the version)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write  # push the submodule pin to dev
@@ -72,25 +100,26 @@ jobs:
     timeout-minutes: 60  # build + test + smoke test + up to 30 min CI wait
     # environment: release
     steps:
-      - name: Validate version input
-        id: check
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::version must be MAJOR.MINOR.PATCH, got: $VERSION"
-            exit 1
-          fi
-          NEXT_PATCH=$(( ${VERSION##*.} + 1 ))
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "snapshot=${VERSION%.*}.${NEXT_PATCH}-SNAPSHOT" >> "$GITHUB_OUTPUT"
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
           submodules: recursive
           fetch-depth: 0
+
+      - name: Validate version input
+        id: check
+        env:
+          VERSION: ${{ inputs.version }}
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          # parse validates the version (MAJOR.MINOR.PATCH, optionally with a
+          # -QUALIFIER for a pre-release/milestone) and derives everything the
+          # remaining steps need: prerelease, branch, snapshot, tag.
+          # See scripts/release-version.sh (shared with docker-deploy.yml).
+          set -o pipefail
+          scripts/release-version.sh parse "$VERSION" ${BRANCH:+--branch "$BRANCH"} \
+            | tee -a "$GITHUB_OUTPUT"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v6
@@ -99,6 +128,8 @@ jobs:
           java-version: '21'
 
       - name: Prepare submodules
+        env:
+          BRANCH: ${{ steps.check.outputs.branch }}
         run: |
           # --global: local config would only apply to the parent repo,
           # commits in the submodules have their own config and would fail
@@ -106,13 +137,20 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
           for d in ebms-core; do
+            # a derived branch that does not exist remotely (e.g. releasing
+            # 2.22.0-M1 before dev-2.22.x was created) otherwise fails with a
+            # bare "couldn't find remote ref"
+            if ! git -C "$d" ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+              echo "::error::branch $BRANCH does not exist on eluinstra/ebms-core (derived from the version; pass the branch input to override)"
+              exit 1
+            fi
             # fetch tags too, so the release step can find the previous
             # release tag for the changelog body
-            git -C "$d" fetch --quiet --tags origin dev-2.20.x
-            git -C "$d" checkout --quiet dev-2.20.x
+            git -C "$d" fetch --quiet --tags origin "$BRANCH"
+            git -C "$d" checkout --quiet "$BRANCH"
             # release from the branch tip; refuse to run on a dirty tree
-            if ! git -C "$d" diff --quiet origin/dev-2.20.x HEAD; then
-              echo "::error::$d is not at the tip of origin/dev-2.20.x"
+            if ! git -C "$d" diff --quiet "origin/$BRANCH" HEAD; then
+              echo "::error::$d is not at the tip of origin/$BRANCH"
               exit 1
             fi
             if [ -n "$(git -C "$d" status --porcelain)" ]; then
@@ -169,12 +207,13 @@ jobs:
       - name: Commit and tag releases
         env:
           VERSION: ${{ steps.check.outputs.version }}
+          BRANCH: ${{ steps.check.outputs.branch }}
           TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
         run: |
           git -C ebms-core add pom.xml
           git -C ebms-core commit -m "release ${VERSION}"
           git -C ebms-core tag "ebms-core-${VERSION}"
-          git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" dev-2.20.x
+          git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" "$BRANCH"
           git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" "ebms-core-${VERSION}"
 
       - name: Create GitHub releases
@@ -183,21 +222,28 @@ jobs:
         # the default branch, i.e. the wrong commit
         env:
           VERSION: ${{ steps.check.outputs.version }}
+          BRANCH: ${{ steps.check.outputs.branch }}
+          PRERELEASE: ${{ steps.check.outputs.prerelease }}
           TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
         run: |
           create_release() {
             local repo=$1 dir=$2 dist=$3 tag=$4
-            # changelog body: commit subjects since the previous release tag
+            # changelog body: commit subjects since the previous release tag on
+            # this branch. The tag we just created sits at HEAD and must not be
+            # its own predecessor; the script picks the newest tag that is an
+            # ancestor of HEAD and not superseded by a newer one, which handles
+            # the milestone -> RC -> GA sequence that a plain version sort gets
+            # wrong (sort -V puts 2.21.0 before 2.21.0-M1).
             local prev_tag body
-            prev_tag=$(git -C "$dir" tag --list "${dir}-*" | sort -V | head -n -1 | tail -n 1)
+            prev_tag=$(scripts/release-version.sh prev-tag --dir "$dir" --exclude "$tag")
             body=""
             if [ -n "$prev_tag" ]; then
               body=$(git -C "$dir" log --no-merges --pretty='- %s' "${prev_tag}..HEAD" | grep -v '^- release ' || true)
             fi
             [ -n "$body" ] || body="- (no changelog available)"
             local payload release_id
-            payload=$(jq -n --arg tag "$tag" --arg body "$body" \
-              '{tag_name: $tag, target_commitish: "dev-2.20.x", body: $body, draft: false, prerelease: false}')
+            payload=$(jq -n --arg tag "$tag" --arg body "$body" --arg target "$BRANCH" --argjson pre "$PRERELEASE" \
+              '{tag_name: $tag, target_commitish: $target, body: $body, draft: false, prerelease: $pre}')
             release_id=$(curl -sf -X POST \
                 -H "Authorization: Bearer ${TOKEN}" \
                 -H "Accept: application/vnd.github+json" \
@@ -225,30 +271,45 @@ jobs:
                 exit 1
               fi
             done
-            echo "${repo}: created release ${tag} (id ${release_id}) with $(ls "$dist" | wc -l) assets"
+            echo "${repo}: created release ${tag} (id ${release_id}, prerelease ${PRERELEASE}) with $(ls "$dist" | wc -l) assets"
           }
           create_release eluinstra/ebms-core ebms-core dist/ebms-core "ebms-core-${VERSION}"
 
       - name: Prepare for next development iteration
         env:
           SNAPSHOT: ${{ steps.check.outputs.snapshot }}
+          BRANCH: ${{ steps.check.outputs.branch }}
           TOKEN: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
         run: |
+          # stable release: <next patch>-SNAPSHOT; pre-release: back to
+          # <base>-SNAPSHOT, i.e. the version it is a pre-release of stays in
+          # development (see scripts/release-version.sh)
           sed -i "s|<revision>.*</revision>|<revision>${SNAPSHOT}</revision>|" ebms-core/pom.xml
           git -C ebms-core add pom.xml
           git -C ebms-core commit -m "prepare for next development iteration"
-          git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" dev-2.20.x
+          git -C ebms-core push "https://x-access-token:${TOKEN}@github.com/eluinstra/ebms-core.git" "$BRANCH"
 
       - name: Pin submodules in parent
         env:
           VERSION: ${{ steps.check.outputs.version }}
+          BRANCH: ${{ steps.check.outputs.branch }}
         run: |
           # Update every submodule to the tip of its configured branch, so the
           # pin commit captures the current state of ALL modules
           # (documentation, ebms-docker, ebms-perftest-setup in addition to
-          # ebms-core, which is already at the dev-2.20.x tip, i.e. its
-          # <next patch>-SNAPSHOT commit from the step above)
+          # ebms-core, which is already at the release branch tip, i.e. its
+          # <next iteration>-SNAPSHOT commit from the step above)
           git submodule update --remote --checkout --quiet
+          # .gitmodules pins ebms-core to its `dev` branch, which is not
+          # necessarily the release branch we just pushed (e.g. dev-2.21.x):
+          # move it back to the tip of the branch we released from, so the pin
+          # captures the post-release state of the release. A failed fetch must
+          # abort: checking out a stale FETCH_HEAD would pin the wrong commit.
+          if ! git -C ebms-core fetch --quiet origin "$BRANCH"; then
+            echo "::error::could not fetch $BRANCH from ebms-core; refusing to pin an unknown commit"
+            exit 1
+          fi
+          git -C ebms-core checkout --quiet FETCH_HEAD
           # ignore=all in .gitmodules makes plain `git add` skip gitlinks
           git add -f ebms-core documentation ebms-docker ebms-perftest-setup
           # ignore=all also hides gitlink changes from git diff/status, so

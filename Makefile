@@ -11,7 +11,7 @@ MVN := mvn -B
 
 CORE   := ebms-core/pom.xml
 
-.PHONY: help build test server module checkstyle skip-tests
+.PHONY: help build test server module checkstyle skip-tests release-check
 
 help:
 	@echo "EbMS common targets"
@@ -21,6 +21,7 @@ help:
 	@echo "  make module M=X   Build a single core module with deps (M=path, e.g. core)"
 	@echo "  make checkstyle   Run checkstyle across the core reactor"
 	@echo "  make skip-tests   Quick core build without tests"
+	@echo "  make release-check  Self-test the release version rules (scripts/release-version.sh)"
 	@echo ""
 	@echo "Submodules (submodule remotes need token auth):"
 	@echo "  scripts/push-submodule.sh <path|name> [branch]   push a submodule branch"
@@ -50,3 +51,7 @@ checkstyle:
 # Quick build without running tests.
 skip-tests:
 	$(MVN) -f $(CORE) -DskipTests=true package
+
+# Self-test the release version rules used by release.yml and docker-deploy.yml.
+release-check:
+	scripts/release-version.sh --self-test

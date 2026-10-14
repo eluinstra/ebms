@@ -62,21 +62,35 @@ CI/CD
 
 - Default branch: dev
 - GitHub Actions: ci.yml (PR/push build & test)
-- Release: release.yml (workflow_dispatch, input: version). Parent-driven
-  release of ebms-core (including the ebms-server module) from the tip of dev-2.20.x: bump, build
+- Release: release.yml (workflow_dispatch, inputs: version + optional branch).
+  Parent-driven
+  release of ebms-core (including the ebms-server module) from the tip of the
+  release branch dev-<major>.<minor>.x (derived from the version, e.g.
+  2.21.0-M1 -> dev-2.21.x): bump, build
   + test, run the two-adapter smoke test (ebms-core/smoke-test.sh: adapter 1 = the built
   ebms-core server jar (local `nl.clockwork.ebms.server.embedded.startup.StartEmbedded`,
   property-driven) vs adapter 2 = the published docker
   image; failure aborts the release before any tag/push),
   commit + tag + push the submodule, create a GitHub release with the built
   JARs as assets (core jar, ebms-server fat jar, all plugins), bump to
-  <next patch>-SNAPSHOT, pin the submodules in
+  the next development iteration SNAPSHOT, pin the submodules in
   the parent, wait for CI. Requires secret
   SUBMODULE_GITHUB_TOKEN (minimal: Contents read+write on the ebms-core
   repo; the same PAT also needs Contents read+write on ebms-admin because
   docs-deploy.yml pushes the GitHub Pages site there; the job token declares
   only contents:write + actions:read). See
   CONTRIBUTING.md ("Releasing a version") for prerequisites and recovery.
+- Pre-releases (milestones/RCs): release.yml accepts MAJOR.MINOR.PATCH-QUALIFIER
+  (2.21.0-M1, 2.21.0-RC1) and creates the GitHub release with prerelease: true.
+  The next-iteration bump returns to <base>-SNAPSHOT (the base stays in
+  development) rather than the next patch. docker-deploy.yml publishes a
+  pre-release under its own version tag only — `latest` and the <major>.<minor>
+  tag always stay on the last stable release. All version rules (accept/reject,
+  derived branch, snapshot, changelog prev-tag) live in
+  scripts/release-version.sh, shared by both workflows; run
+  `make release-check` after touching them. `sort -V` alone is NOT enough to
+  pick the previous release tag (it puts 2.21.0 before 2.21.0-M1) — use the
+  script's `prev-tag`, which resolves ancestry.
 - Dependabot: weekly updates for maven, npm (documentation), and github-actions
 - Static analysis: SonarQube integration configured
 
