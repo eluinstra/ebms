@@ -88,6 +88,14 @@ CI/CD
   release branch does not exist or its build fails, the companion is skipped
   with a warning (an `admin` step output gates all admin steps) and the
   ebms-core release completes.
+- The standalone release workflow inside ebms-core
+  (ebms-core/.github/workflows/release.yml — self-contained, no parent
+  submodule pins) creates the same pair: primary ebms-core release, then the
+  companion ebms-admin release via ebms-core/scripts/release-admin-companion.sh
+  (tolerant: skipped with a warning when the optional secret EBMS_ADMIN_TOKEN
+  is unset in eluinstra/ebms-core, the admin release branch is missing, or the
+  admin build fails; idempotent on re-run). See CONTRIBUTING.md ("Alternative:
+  the standalone ebms-core workflow").
 - Pre-releases (milestones/RCs): release.yml accepts MAJOR.MINOR.PATCH-QUALIFIER
   (2.21.0-M1, 2.21.0-RC1) and creates the GitHub release with prerelease: true.
   The next-iteration bump returns to <base>-SNAPSHOT (the base stays in

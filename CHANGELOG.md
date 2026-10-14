@@ -21,3 +21,10 @@ All notable changes to this project will be documented in this file.
   before the companion, and the companion can never block it — a missing
   ebms-admin release branch or a failing ebms-admin build skips the companion
   with a warning instead of failing the release
+- The standalone ebms-core release workflow
+  (ebms-core/.github/workflows/release.yml) creates the same companion
+  ebms-admin GitHub release via the new
+  `ebms-core/scripts/release-admin-companion.sh` (tolerant + idempotent;
+  gated on the optional secret `EBMS_ADMIN_TOKEN`, skipped with a warning
+  when it is unset, the admin release branch is missing, or the admin build
+  fails)

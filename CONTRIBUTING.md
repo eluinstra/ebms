@@ -145,6 +145,27 @@ Results:
 - https://github.com/eluinstra/ebms-core/releases/tag/ebms-core-<v>  (primary)
 - https://github.com/eluinstra/ebms-admin/releases/tag/ebms-admin-<v>  (companion)
 
+Alternative: the standalone ebms-core workflow
+
+ebms-core also has its own release workflow
+(ebms-core/.github/workflows/release.yml, workflow_dispatch, same version/branch
+inputs), which releases the core reactor without touching the parent repo's
+submodule pins. It is self-contained, and it creates the SAME releases: the
+primary ebms-core GitHub release, then the companion ebms-admin GitHub release
+via ebms-core/scripts/release-admin-companion.sh (admin jar + plugin jars, body
+links to the primary). The companion is tolerant and can never fail the
+ebms-core release: it is skipped with a warning when the optional repository
+secret EBMS_ADMIN_TOKEN is not set in eluinstra/ebms-core (PAT with Contents
+read+write on eluinstra/ebms-admin), when the ebms-admin release branch does
+not exist, or when the ebms-admin build fails. If a release was created without
+the companion (e.g. before the secret was configured), the companion can be
+created afterwards by running the script manually from a checkout of ebms-core
+at the release tag, with the core artifacts of the version installed in the
+local Maven repository (`mvn clean install`) and EBMS_ADMIN_TOKEN exported; the
+script is idempotent and refuses to touch an already existing companion release
+(do NOT re-run the whole workflow for this: its core release steps are not
+re-runnable once the tag exists).
+
 Notes:
 - Nothing is published to Maven Central or GitHub Packages; the JARs are
   only attached to the GitHub releases.
