@@ -121,6 +121,8 @@ Key patterns & conventions
 
 - Multi-module Maven parent at ebms-core/pom.xml. Changes to the core module commonly require updating plugins under plugin/* and modules that depend on core.
 - Database plugins live in ebms-core/plugin/db/* — changing persistence schema will require updating migrations (if used) and tests in core/resources/test.
+- Cross-dialect SQL: paginated queries must use SQL:2008 pagination (`offset N rows fetch first ? rows only`, maxNr bound as a parameter — see `EbMSDAOImpl`, and the `dialect-matrix`-tagged `DialectPaginationIT`/`DialectRawSqlIT` under `-P dialect-matrix`, which prove the production SQL on real H2/HSQLDB/PostgreSQL/MariaDB 11). LIMIT-style concatenation breaks MariaDB/SQL Server and stays red until the underlying C1 pagination fix (MariaDB 10.5-class dialects reject `offset 0 rows fetch first N rows only`); matrix ITs are excluded from the default run.
+- HA model (since the 2.21 restructure): Raft/JGroups and Atomikos XA were removed. Multi-node coordination = ShedLock on scheduled jobs; delivery/content dedup = idempotence backstops (dedup keys + delivery-claim columns V2.23.0, conditional `UPDATE ... WHERE claim IS NULL/EXPIRED`); message processing = local transactions (JDBC `DataSourceTransactionManager` in `common/transaction/TransactionManagerConfig`, JMS `JmsTransactionManager` in the jms messaging plugin). Guarantee is at-least-once with the named backstops; do not reintroduce XA or distributed consensus without an explicit design decision.
 - Version management uses ${revision} property (currently 2.21.0-SNAPSHOT)
 
 Adding a new module
