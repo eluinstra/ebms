@@ -369,3 +369,29 @@ another node before the creator polls it).
   failsafe excludes for the default profile so an accidental invocation cannot break CI.
 - **Flyway discipline** — only NEW migration files; existing files untouched (checksum
   safety per AGENTS.md).
+
+## Follow-ups (2026-10-15, session 2)
+
+1. **DBClean.java:416 `t.printStackTrace()` — DONE (01b7425d).** `printErr` no-log4j fallback now calls
+   `t.printStackTrace(System.err)` (explicit destination; the only remaining bare `printStackTrace()` in the codebase). Output and behavior unchanged.
+2. **Checkstyle normalization of ThrowingFunction/PluginProvider — DONE (8ac77055, root cause found).**
+   The 21 triage violations came from **sun_checks.xml, not the project config**: `configLocation` was only wired in the
+   `<reporting>` section, so `checkstyle:check` fell back to Sun defaults (eol braces, 80 columns, required Javadoc) that the
+   whole Allman+tabs codebase violates. Fix: point the dotted plugin properties
+   (`checkstyle.config.location`, `checkstyle.header.file`) at
+   `${maven.multiModuleProjectDirectory}/resources/reporting/` — resolves correctly from the parent repo, ebms-core and all
+   submodules. The two legacy classes then needed only real work: Javadoc on the SPI methods, `(T) t` typecast spacing,
+   trailing newlines, `package-info.java`. **Tabs and Allman braces stay — that is the project style the config demands.**
+   `common` now reports 0 violations; `client`-side modules that were reachable in the reactor pass as well.
+3. **Newly exposed backlog (8ac77055 commit message + this plan):** with the real config finally enforced, the `core` module
+   reports **191 pre-existing violations across ~125 files**: 181 RedundantModifier (interface-member `public`/`final`),
+   6 ConstantName (`messageLog`, `certificateHolder`, `xmlHandlers`, `saxParserFactory`), 4 MagicNumber
+   (`BasicAuthenticationFilter` `300000L` lockout default + others), 1 AvoidStarImport (`EbMSMessageBuilder` vavr), 1
+   VisibilityModifier (`LoggingUtils` `mdc`). Attribution: none introduced by the 9 fix commits (only the two R4a
+   `LoopbackUtils` mask literals, fixed with named constants in f4f2b944, 30 tests green). The backlog predates the review
+   range and needs a dedicated mechanical pass (RedundantModifier removal is source-only but touches ~120 files) — NOT
+   folded into this branch.
+4. **Verification:** full `make test` = 1118 tests, 0 failures, 0 errors, 2 skipped (first run hit a Kafka testcontainers
+   launch flake — container exit 99 during RECOVERY→RUNNING wait; passes on re-run, infra-only). `make checkstyle` now fails
+   only on the documented 191-item backlog (it previously failed meaninglessly on sun_checks noise).
+
