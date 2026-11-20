@@ -82,9 +82,12 @@ jobs:
           echo "snapshot=${VERSION%.*}.${NEXT_PATCH}-SNAPSHOT" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
+        # GITHUB_TOKEN (job token, contents: write per `permissions:`) - it
+        # can read the parent and later push the submodule pin. Submodules are
+        # public, so the recursive fetch works. (SUBMODULE_GITHUB_TOKEN cannot
+        # read the parent; it is only used for the explicit submodule pushes.)
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.SUBMODULE_GITHUB_TOKEN }}
           submodules: recursive
           fetch-depth: 0
 
