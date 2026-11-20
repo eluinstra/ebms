@@ -19,7 +19,7 @@ echo "[1/4] OWASP dependency check - ebms-core"
     -DnvdApiKey="$NVD_API_KEY" \
     -Ddependency-check.nvd.apiKey="$NVD_API_KEY" \
     -Dformats=HTML,JSON \
-    org.owasp:dependency-check-maven:12.2.1:aggregate
+    org.owasp:dependency-check-maven:13.0.0:aggregate
   cp -f target/dependency-check-report.html "$OUT_DIR/ebms-core-dependency-check-report.html"
   cp -f target/dependency-check-report.json "$OUT_DIR/ebms-core-dependency-check-report.json"
 )
